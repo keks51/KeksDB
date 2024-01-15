@@ -1,5 +1,5 @@
 # Example of key value database based on bplus and lsm trees
-- Database supports concurrent operations: put, remove, get
+- Database supports concurrent operations: put, remove, get, range select
 - Bplus tree is based on page buffer which stores data both in memory and disk.
 - Lsm tree is based on memcache and sstables.
 - Recovery is based on commit log and checkpoint snapshots
