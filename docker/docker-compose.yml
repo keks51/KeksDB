@@ -1,0 +1,62 @@
+version: "3.9"
+services:
+#  web:
+#    build: .
+#    ports:
+#      - "8000:5000"
+  kv-server:
+    container_name: kv-server
+    image: "kv-server"
+    environment:
+      - KV_STORAGE_PATH=/kv_storage_data
+      - KV_HTTP_SERVER_PORT=8765
+      - KV_HTTP_SERVER_MIN_THREADS=1
+      - KV_HTTP_SERVER_MAX_THREADS=50
+      - KV_THRIFT_SERVER_MIN_THREADS=1
+      - KV_THRIFT_SERVER_MAX_THREADS=50
+      - KV_THRIFT_SERVER_PORT=8766
+      - DEFAULT_NUMBER_OF_KEYS_IN_BLOCK_INDEX=3
+      - DEFAULT_MAX_NUMBER_OF_RECORDS_IN_MEMORY=10
+      - DEFAULT_BLOOM_FILTER_FALSE_POSITIVE_RATE=0.5
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+      - "9010:9010" # jmx port
+    mem_limit: 1g
+    mem_reservation: 1g
+    cpus: 6.0
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '4.0'
+#          memory: 500M
+#    deploy:
+#      resources:
+##        limits:
+##          cpus: 1.0
+##          memory: 512M
+#        reservations:
+#          cpus: "1.0"
+#          memory: 1G
+##    volumes:
+##      - ./storage/:/kv_storage_data
+
+#  kv-client:
+#    container_name: kv-client
+#    image: "kv-client"
+#    environment:
+#      - CLIENT_TYPE=THRIFT # HTTP,THRIFT
+#      - KV_SERVER_HOST=kv-server
+#      - KV_HTTP_SERVER_PORT=8765
+#      - KV_THRIFT_SERVER_PORT=8766
+#      - RECORDS_NUMBER=1000000
+#      - NUMBER_OF_THREADS=50
+#      - NUMBER_OF_KEYS_IN_INDEX=1000
+#      - IN_MEMORY_RECORDS=100000
+#      - BLOOM_FILTER_FALSE_POSITIVE_RATE=0.01
+#      - HTTP_TABLE_NAME=test_http
+#      - THRIFT_TABLE_NAME=test_thrift
+#    mem_limit: 1g
+#    mem_reservation: 1g
+#    cpus: 4.0
+# kv-server 8765 1000000 250 100 1000
