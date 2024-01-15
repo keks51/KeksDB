@@ -3,6 +3,7 @@
 - Bplus tree is based on page buffer which stores data both in memory and disk.
 - Lsm tree is based on memcache and sstables.
 - Recovery is based on commit log and checkpoint snapshots
+- Http and thrift clients
 
 ## Bplus tree example
 see samples.BplusSamplesTest
