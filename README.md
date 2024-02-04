@@ -5,6 +5,7 @@
 - Lsm tree is based on memcache and sstables.
 - Recovery is based on WAL and checkpoint snapshots
 - Http and thrift clients
+- Compared with RocksDB 8.10.0. See below
 
 # Architecture
 ## database
@@ -232,6 +233,7 @@ Parameters:
 - MemTable size: 256mb
 - Sparse index size in records: 8192 records
 - All cashes are disabled
+- version: 8.10.0
 
 ### Put (5 million records, approx 2.5G)
 [write_test.sh](perf_res%2Frocksdb%2Fwrite_test.sh)
