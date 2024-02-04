@@ -24,6 +24,7 @@ public class MemCacheTable {
     private final AtomicLong ids = new AtomicLong();
 
     private final int maxPartitionSize;
+    private volatile boolean isFlushing;
 
     public MemCacheTable(int maxPartitionSize) {
         this.maxPartitionSize = maxPartitionSize;
@@ -116,7 +117,7 @@ public class MemCacheTable {
     }
 
     public boolean isFull() {
-        return maxPartitionSize <= partitions.getLast().getRecordsCnt();
+        return maxPartitionSize < partitions.getLast().getRecordsCnt();
     }
 
     protected List<Iterator<KVRecord>> getRangeFromParts(String left) {
@@ -152,6 +153,18 @@ public class MemCacheTable {
             res.addLast(func.apply(partition));
         }
         return res;
+    }
+
+    public void setIsFlushing() {
+        this.isFlushing = true;
+    }
+
+    public void unsetIsFlushing() {
+        this.isFlushing = false;
+    }
+
+    public boolean isFlushing() {
+        return this.isFlushing;
     }
 
 }

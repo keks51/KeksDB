@@ -27,8 +27,8 @@ class KVStoreConcurrentTest {
         KVStore kvStore = new KVStore(tmpPath.toFile()); //, 100, 500, 0.1
         kvStore.createDB(dbName);
         Properties properties = new Properties();
-        properties.put(SPARSE_INDEX_SIZE, 100);
-        properties.put(MEM_CACHE_SIZE, 100_000);
+        properties.put(SPARSE_INDEX_SIZE_RECORDS, 100);
+        properties.put(MEM_CACHE_SIZE_RECORDS, 100_000);
         properties.put(BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.9);
         kvStore.createTable(dbName, tableName, "lsm", properties);
 

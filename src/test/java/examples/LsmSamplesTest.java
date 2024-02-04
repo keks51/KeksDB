@@ -1,4 +1,4 @@
-package samples;
+package examples;
 
 import com.keks.kv_storage.KVStore;
 import com.keks.kv_storage.lsm.conf.LsmConfParamsEnum;
@@ -31,7 +31,7 @@ public class LsmSamplesTest {
             String tblName = "lsm_table_test";
             // lsm table properties
             Properties properties = new Properties() {{
-                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_000_000);
+                put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, 1_000_000);
                 put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
             }};
             kvStore.createTable(
@@ -79,7 +79,7 @@ public class LsmSamplesTest {
         try (KVStore kvStore = new KVStore(tmpPath.toFile());) {
             kvStore.createDB(dbName);
             Properties properties = new Properties() {{
-                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_000_000);
+                put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, 1_000_000);
                 put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
             }};
             kvStore.createTable(

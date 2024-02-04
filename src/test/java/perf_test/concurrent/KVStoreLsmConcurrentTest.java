@@ -28,8 +28,8 @@ class KVStoreLsmConcurrentTest {
         KVStore kvStore = new KVStore(tmpPath.toFile());
         kvStore.createDB(dbName);
         Properties properties = new Properties();
-        properties.put(SPARSE_INDEX_SIZE, 128);
-        properties.put(MEM_CACHE_SIZE, 100_000);
+        properties.put(SPARSE_INDEX_SIZE_RECORDS, 128);
+        properties.put(MEM_CACHE_SIZE_RECORDS, 100_000);
         properties.put(BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5);
         properties.put(KV_TABLE_COMMIT_LOG_PARALLELISM, 10);
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.name(), properties);
@@ -58,8 +58,8 @@ class KVStoreLsmConcurrentTest {
         KVStore kvStore = new KVStore(tmpPath.toFile());
         kvStore.createDB(dbName);
         Properties properties = new Properties();
-        properties.put(SPARSE_INDEX_SIZE, 1000);
-        properties.put(MEM_CACHE_SIZE, 100_000);
+        properties.put(SPARSE_INDEX_SIZE_RECORDS, 1000);
+        properties.put(MEM_CACHE_SIZE_RECORDS, 100_000);
         properties.put(BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5);
         properties.put(KV_TABLE_COMMIT_LOG_PARALLELISM, 10);
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.name(), properties);

@@ -11,6 +11,7 @@ import static com.keks.kv_storage.conf.ConfigParams.*;
 
 public enum KvTableConfParamsEnum implements ParamParser {
 
+    ENABLE_WAL(KV_TABLE_ENABLE_WAL, true, booleanParser),
     COMMIT_LOG_PARALLELISM(KV_TABLE_COMMIT_LOG_PARALLELISM, 10, 1, 1000, intComparator, intParser),
     ENABLE_PERIODIC_CHECKPOINT(KV_TABLE_ENABLE_PERIODIC_CHECKPOINT, false, booleanParser),
     TRIGGER_CHECKPOINT_AFTER_SEC(KV_TABLE_TRIGGER_CHECKPOINT_AFTER_SEC, 10, 1, 108_000, intComparator, intParser);
@@ -69,4 +70,5 @@ public enum KvTableConfParamsEnum implements ParamParser {
     public Object getDefaultValue() {
         return defaultValue;
     }
+
 }

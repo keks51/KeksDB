@@ -87,6 +87,7 @@ public class KvDatabase {
         String tableNameUpper = tableName.toUpperCase();
         KvTable kvTable = databaseTables.get(tableNameUpper);
         kvTable.setDeleted();
+        kvTable.close();
         databaseTables.remove(tableNameUpper);
         if (!FileUtils.deleteDirectory(kvTable.engineDir.getParentFile()))
             throw new TableDirectoryNotEmptyException(dbName, tableName, kvTable.engineDir);

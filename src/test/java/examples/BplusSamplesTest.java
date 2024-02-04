@@ -1,4 +1,4 @@
-package samples;
+package examples;
 
 
 import com.keks.kv_storage.KVStore;

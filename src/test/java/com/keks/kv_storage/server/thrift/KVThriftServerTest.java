@@ -19,8 +19,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
-import static com.keks.kv_storage.lsm.conf.LsmConfParamsEnum.MEM_CACHE_SIZE;
-import static com.keks.kv_storage.lsm.conf.LsmConfParamsEnum.SPARSE_INDEX_SIZE;
+import static com.keks.kv_storage.lsm.conf.LsmConfParamsEnum.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 
@@ -93,7 +92,7 @@ class KVThriftServerTest {
         {
             kvThriftClient.createTable(dbName, tableName, TableEngineType.LSM, new HashMap<>() {
                 {
-                    put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 3);
+                    put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 3);
                     put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                     put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
                 }
@@ -105,7 +104,7 @@ class KVThriftServerTest {
             ThriftClientCommandException exception = assertThrows(ThriftClientCommandException.class,
                     () -> kvThriftClient.createTable(dbName, tableName, TableEngineType.LSM, new HashMap<>() {
                         {
-                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 3);
+                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 3);
                             put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                             put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
                         }
@@ -149,8 +148,8 @@ class KVThriftServerTest {
     public void testDropTable2() throws TException {
         String tableName = "test_drop_table2";
         Properties properties = new Properties() {{
-            put(SPARSE_INDEX_SIZE, 1);
-            put(MEM_CACHE_SIZE, 1);
+            put(SPARSE_INDEX_SIZE_RECORDS, 1);
+            put(MEM_CACHE_SIZE_RECORDS, 1);
         }};
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
         kvStore.put(dbName, tableName,"key12", "age12".getBytes());
@@ -222,8 +221,9 @@ class KVThriftServerTest {
     public void testOptimizeTable() throws TException {
         String tableName = "test_optimize";
         Properties properties = new Properties() {{
-            put(SPARSE_INDEX_SIZE, 1);
-            put(MEM_CACHE_SIZE, 1);
+            put(SPARSE_INDEX_SIZE_RECORDS, 1);
+            put(MEM_CACHE_SIZE_RECORDS, 1);
+            put(SYNC_WITH_THREAD_FLUSH, true);
         }};
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
 
@@ -233,7 +233,7 @@ class KVThriftServerTest {
         kvStore.flushTable(dbName, tableName);
 
         File tableDir = storageDirPath.resolve(dbName).resolve(tableName).resolve(TableEngineType.LSM.toString()).resolve("data").toFile();
-        TestUtils.assertNumberOfSSTables(tableDir, 3);
+        TestUtils.assertNumberOfSSTables(tableDir, 2);
 
         kvThriftClient.optimizeTable(dbName, tableName);
         TestUtils.assertNumberOfSSTables(tableDir, 1);
@@ -243,8 +243,9 @@ class KVThriftServerTest {
     public void testFlushTable() throws TException {
         String tableName = "test_flush";
         Properties properties = new Properties() {{
-            put(SPARSE_INDEX_SIZE, 1);
-            put(MEM_CACHE_SIZE, 2);
+            put(SPARSE_INDEX_SIZE_RECORDS, 1);
+            put(MEM_CACHE_SIZE_RECORDS, 2);
+            put(SYNC_WITH_THREAD_FLUSH, true);
         }};
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
 
@@ -252,6 +253,7 @@ class KVThriftServerTest {
         kvStore.put(dbName, tableName, "key12", "age12".getBytes());
         kvStore.put(dbName, tableName, "key13", "age14".getBytes());
         kvStore.put(dbName, tableName, "key14", "age14".getBytes());
+        kvStore.put(dbName, tableName, "key15", "age15".getBytes());
         File tableDir = storageDirPath.resolve(dbName).resolve(tableName).resolve(TableEngineType.LSM.toString()).resolve("data").toFile();
         TestUtils.assertNumberOfSSTables(tableDir, 1);
 
@@ -266,8 +268,9 @@ class KVThriftServerTest {
         File dataDir = tableDir.resolve(TableEngineType.LSM.toString()).resolve("data").toFile();
         {
             Properties properties = new Properties() {{
-                put(SPARSE_INDEX_SIZE, 1);
-                put(MEM_CACHE_SIZE, 2);
+                put(SPARSE_INDEX_SIZE_RECORDS, 1);
+                put(MEM_CACHE_SIZE_RECORDS, 2);
+                put(SYNC_WITH_THREAD_FLUSH, true);
             }};
             kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
         }
@@ -277,6 +280,7 @@ class KVThriftServerTest {
             kvStore.put(dbName, tableName, "key12", "age12".getBytes());
             kvStore.put(dbName, tableName, "key13", "age14".getBytes());
             kvStore.put(dbName, tableName, "key14", "age15".getBytes());
+            kvStore.put(dbName, tableName, "key15", "age15".getBytes());
             TestUtils.assertNumberOfSSTables(dataDir, 1);
             kvThriftClient.createCheckpoint(dbName, tableName);
             TestUtils.assertNumberOfSSTables(dataDir, 2);
@@ -287,6 +291,7 @@ class KVThriftServerTest {
             kvStore.put(dbName, tableName, "key22", "age12".getBytes());
             kvStore.put(dbName, tableName, "key23", "age14".getBytes());
             kvStore.put(dbName, tableName, "key24", "age15".getBytes());
+            kvStore.put(dbName, tableName, "key25", "age15".getBytes());
             TestUtils.assertSStablesExists(dataDir, "1v1", "2v1", "3v1");
             kvThriftClient.createCheckpoint(dbName, tableName);
             TestUtils.assertSStablesExists(dataDir, "1v1", "2v1", "3v1", "4v1");

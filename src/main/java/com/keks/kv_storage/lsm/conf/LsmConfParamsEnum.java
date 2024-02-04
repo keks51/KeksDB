@@ -10,14 +10,15 @@ import static com.keks.kv_storage.conf.ConfigParams.*;
 
 
 public enum LsmConfParamsEnum implements ParamParser {
+    SYNC_WITH_THREAD_FLUSH(LSM_SYNC_WITH_THREAD_FLUSH, false, booleanParser),
     MAX_SSTABLES(LSM_MAX_SSTABLES, 50, 1, 16_384, intComparator, intParser),
     ENABLE_MERGE_IF_MAX_SSTABLES(LSM_ENABLE_MERGE_IF_MAX_SSTABLES, false, booleanParser),
     ENABLE_BACKGROUND_MERGE(LSM_ENABLE_BACKGROUND_MERGE, false, booleanParser),
     BACKGROUND_MERGE_INIT_DELAY(LSM_BACKGROUND_MERGE_INIT_DELAY, 60, 0, 108_000, intComparator, intParser),
     TRIGGER_BACKGROUND_MERGE_AFTER_SEC(LSM_TRIGGER_BACKGROUND_MERGE_AFTER_SEC, 3600, 1, 108_000, intComparator, intParser),
 
-    SPARSE_INDEX_SIZE(LSM_SPARSE_INDEX_SIZE, 128, 1, 16_384, intComparator, intParser),
-    MEM_CACHE_SIZE(LSM_MEM_CACHE_SIZE, 100000, 1, 10_000_000, intComparator, intParser),
+    SPARSE_INDEX_SIZE_RECORDS(LSM_SPARSE_INDEX_SIZE_RECORDS, 128, 1, 16_384, intComparator, intParser),
+    MEM_CACHE_SIZE_RECORDS(LSM_MEM_CACHE_SIZE, 100000, 1, 10_000_000, intComparator, intParser),
     BLOOM_FILTER_FALSE_POSITIVE_RATE(LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5, 0.001, 0.99, doubleComparator, doubleParser);
 
     public final String name;

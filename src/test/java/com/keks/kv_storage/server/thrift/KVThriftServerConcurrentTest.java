@@ -57,8 +57,8 @@ class KVThriftServerConcurrentTest {
         String tableName = "test";
 
         Properties properties = new Properties();
-        properties.put(SPARSE_INDEX_SIZE, 100);
-        properties.put(MEM_CACHE_SIZE, 500);
+        properties.put(SPARSE_INDEX_SIZE_RECORDS, 100);
+        properties.put(MEM_CACHE_SIZE_RECORDS, 500);
         properties.put(BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
         kvStore.createDB(dbName);
         kvStore.createTable(dbName, tableName, "lsm", properties);

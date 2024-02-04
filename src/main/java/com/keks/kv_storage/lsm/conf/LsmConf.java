@@ -10,13 +10,14 @@ import java.util.Properties;
 public class LsmConf extends Params<LsmConfParamsEnum> {
 
     public final int maxSSTables = super.getConfParam(LsmConfParamsEnum.MAX_SSTABLES);
+    public final boolean syncWithThreadFlush = super.getConfParam(LsmConfParamsEnum.SYNC_WITH_THREAD_FLUSH);
     public final boolean enableMergeIfMaxSSTables = super.getConfParam(LsmConfParamsEnum.ENABLE_MERGE_IF_MAX_SSTABLES);
     public final boolean enableBackgroundMerge = super.getConfParam(LsmConfParamsEnum.ENABLE_BACKGROUND_MERGE);
     public final int backgroundMergeInitDelay = super.getConfParam(LsmConfParamsEnum.BACKGROUND_MERGE_INIT_DELAY);
     public final int triggerBackgroundMergeAfterSec = super.getConfParam(LsmConfParamsEnum.TRIGGER_BACKGROUND_MERGE_AFTER_SEC);
 
-    public final int sparseIndexSize = super.getConfParam(LsmConfParamsEnum.SPARSE_INDEX_SIZE);
-    public final int memCacheSize = super.getConfParam(LsmConfParamsEnum.MEM_CACHE_SIZE);
+    public final int sparseIndexSize = super.getConfParam(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS);
+    public final int memCacheSize = super.getConfParam(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS);
     public final double bloomFilterFalsePositiveRate = super.getConfParam(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE);
 
     public LsmConf(Properties properties) {
@@ -31,9 +32,21 @@ public class LsmConf extends Params<LsmConfParamsEnum> {
                    int memCacheSize,
                    double bloomFilterFalsePositiveRate) {
         super(LsmConfParamsEnum.values(), new Properties() {{
-            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE, sparseIndexSize);
-            put(LsmConfParamsEnum.MEM_CACHE_SIZE, memCacheSize);
+            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, sparseIndexSize);
+            put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, memCacheSize);
             put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, bloomFilterFalsePositiveRate);
+        }});
+    }
+
+    public LsmConf(int sparseIndexSize,
+                   int memCacheSize,
+                   double bloomFilterFalsePositiveRate,
+                   boolean syncWithThreadFlush) {
+        super(LsmConfParamsEnum.values(), new Properties() {{
+            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, sparseIndexSize);
+            put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, memCacheSize);
+            put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, bloomFilterFalsePositiveRate);
+            put(LsmConfParamsEnum.SYNC_WITH_THREAD_FLUSH, syncWithThreadFlush);
         }});
     }
 
@@ -44,8 +57,8 @@ public class LsmConf extends Params<LsmConfParamsEnum> {
                    int backgroundMergeInitDelay,
                    int triggerBackgroundMergeAfterSec) {
         super(LsmConfParamsEnum.values(), new Properties() {{
-            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE, sparseIndexSize);
-            put(LsmConfParamsEnum.MEM_CACHE_SIZE, memCacheSize);
+            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, sparseIndexSize);
+            put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, memCacheSize);
             put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, bloomFilterFalsePositiveRate);
             put(LsmConfParamsEnum.ENABLE_BACKGROUND_MERGE, enableBackgroundMerge);
             put(LsmConfParamsEnum.BACKGROUND_MERGE_INIT_DELAY, backgroundMergeInitDelay);
@@ -59,8 +72,8 @@ public class LsmConf extends Params<LsmConfParamsEnum> {
                    boolean enableMergeIfMaxSSTables,
                    int maxSSTables) {
         super(LsmConfParamsEnum.values(), new Properties() {{
-            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE, sparseIndexSize);
-            put(LsmConfParamsEnum.MEM_CACHE_SIZE, memCacheSize);
+            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, sparseIndexSize);
+            put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, memCacheSize);
             put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, bloomFilterFalsePositiveRate);
             put(LsmConfParamsEnum.ENABLE_MERGE_IF_MAX_SSTABLES, enableMergeIfMaxSSTables);
             put(LsmConfParamsEnum.MAX_SSTABLES, maxSSTables);
@@ -76,8 +89,8 @@ public class LsmConf extends Params<LsmConfParamsEnum> {
                    int backgroundMergeInitDelay,
                    int triggerBackgroundMergeAfterSec) {
         super(LsmConfParamsEnum.values(), new Properties() {{
-            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE, sparseIndexSize);
-            put(LsmConfParamsEnum.MEM_CACHE_SIZE, memCacheSize);
+            put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, sparseIndexSize);
+            put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, memCacheSize);
             put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, bloomFilterFalsePositiveRate);
             put(LsmConfParamsEnum.ENABLE_MERGE_IF_MAX_SSTABLES, enableMergeIfMaxSSTables);
             put(LsmConfParamsEnum.MAX_SSTABLES, maxSSTables);
@@ -101,4 +114,5 @@ public class LsmConf extends Params<LsmConfParamsEnum> {
     public int hashCode() {
         return Objects.hash(sparseIndexSize, memCacheSize, bloomFilterFalsePositiveRate);
     }
+
 }

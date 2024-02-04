@@ -234,7 +234,9 @@ public class BPlusKVTableInsertUtils {
                     traverseLeafNode = BPlusKVTableUtils.getLeafNodeTraverseItem(childLeafPage, childLeafNode, treeLeafNodePageManager);
                 } else {
                     for (TraverseKeyNode e : lockedCachedPages) {
-                        if (e.nodePage.pageId == treeKeyNodePageManager.bplusTreeRuntimeParameters.getRootPageId()) rootLock.writeLock().unlock();
+                        if (e.nodePage.pageId == treeKeyNodePageManager.bplusTreeRuntimeParameters.getRootPageId()) {
+                            rootLock.writeLock().unlock();
+                        }
                         treeKeyNodePageManager.unlockTraverseItem(e);
                     }
                     lockedCachedPages.clear();
@@ -270,12 +272,12 @@ public class BPlusKVTableInsertUtils {
     }
 
     public static void addToLeafAndTraverseUp(KVRecord keyDataTuple,
-                                                 IndexPageManager indexPageManager,
-                                                 TreeKeyNodePageManager treeKeyNodePageManager,
-                                                 TreeLeafNodePageManager treeLeafNodePageManager,
-                                                 DataPageManager dataPageManager,
-                                                 TraverseNodes traverseNodes,
-                                                 ReentrantReadWriteLock rootLock) throws IOException {
+                                              IndexPageManager indexPageManager,
+                                              TreeKeyNodePageManager treeKeyNodePageManager,
+                                              TreeLeafNodePageManager treeLeafNodePageManager,
+                                              DataPageManager dataPageManager,
+                                              TraverseNodes traverseNodes,
+                                              ReentrantReadWriteLock rootLock) throws IOException {
         TraverseLeafNode leafItem = traverseNodes.leafNode;
         Stack<TraverseKeyNode> traverseItems = traverseNodes.keyNodesStack;
         TreeLeafNode leafNode = leafItem.nodePage.getPage();
@@ -303,7 +305,9 @@ public class BPlusKVTableInsertUtils {
                         splitKeyNodeAndUpdateParent(indexPageManager, treeKeyNodePageManager, treeLeafNodePageManager, parentKeyNode, keyNodeItem);
                     }
                 }
-                if (keyNode.pageId == treeKeyNodePageManager.bplusTreeRuntimeParameters.getRootPageId()) rootLock.writeLock().unlock();
+                if (keyNode.pageId == treeKeyNodePageManager.bplusTreeRuntimeParameters.getRootPageId()) {
+                    rootLock.writeLock().unlock();
+                }
                 treeKeyNodePageManager.unlockTraverseItem(keyNodeItem);
             }
         }

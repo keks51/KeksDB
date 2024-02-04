@@ -8,6 +8,7 @@ import com.keks.kv_storage.bplus.item.KeyValueItem;
 import com.keks.kv_storage.bplus.page_manager.managers.DataPageManager;
 import com.keks.kv_storage.bplus.page_manager.page_disk.sp.SlotLocation;
 import com.keks.kv_storage.bplus.page_manager.page_disk.sp.SlottedPage;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -762,8 +763,8 @@ public class MyBufferDiskTest {
     }
 
 
-    @Test
-//    @RepeatedTest(1000)
+//    @Test
+    @RepeatedTest(10)
     public void test10(@TempDir Path dir) throws IOException, ExecutionException, InterruptedException, TimeoutException {
         PageBuffer myBuffer = new PageBuffer(50);
 
@@ -1153,7 +1154,7 @@ public class MyBufferDiskTest {
                     if (ccc % 10_000 == 0) System.err.println(ccc);
                 }
             };
-            runConcurrentTest(records, 1000, 1, func, 2000);
+            runConcurrentTest(records, 1000, 1, func, 200);
 
 //            System.out.println("Read: " + fromDiskPagesReader.dataPageIO.read.get());
 //            System.out.println("Write: " + fromDiskPagesReader.dataPageIO.write.get());

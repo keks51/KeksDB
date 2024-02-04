@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
 
-public class CommitLogReadIterator extends FileChannelBufferedReader<SeqIdKvRecord> {
+public class CommitLogReadIterator extends FileChannelBufferedReader<KvRecordsBatch> {
 
     public CommitLogReadIterator(FileChannel channel, int bufSize) {
         super(channel, 0, bufSize, TypeSize.LONG + TypeSize.INT);
@@ -18,15 +18,16 @@ public class CommitLogReadIterator extends FileChannelBufferedReader<SeqIdKvReco
     }
 
     @Override
-    protected SeqIdKvRecord buildRecord(ByteBuffer bb) {
-        return SeqIdKvRecord.fromByteBuffer(bb);
+    protected KvRecordsBatch buildRecord(ByteBuffer bb) {
+        return KvRecordsBatch.fromByteBuffer(bb);
     }
 
     @Override
     protected int calcRecordLen(ByteBuffer bb) {
         try {
             bb.mark();
-            return bb.getInt();
+            int anInt = bb.getInt();
+            return anInt;
         }finally {
             bb.reset();
         }

@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 
 
+// overhead 16 bytes
 public class IndexedKey implements Item {
 
     // TODO indexed key should be composed of several keys (several columns)

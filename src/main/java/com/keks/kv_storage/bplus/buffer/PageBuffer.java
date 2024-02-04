@@ -215,6 +215,72 @@ public class PageBuffer {
     public static SimpleMeterRegistry registry = new SimpleMeterRegistry();
     public static Timer victimsStepsToFind = registry.timer("victimsStepsToFind");
 
+    ReentrantReadWriteLock cleanLock = new ReentrantReadWriteLock();
+
+    private volatile boolean isCleaning = false;
+
+    public void runClean() {
+        if (isCleaning) return;
+
+
+        cleanLock.writeLock().lock();
+        try {
+            if (!isCleaning && (double) bufCnt * 100 / bufferPoolSize > 80) {
+                isCleaning = true;
+                Runnable runnable = () -> {
+//                System.out.println("running thread");
+                    int flushedCnt = 0;
+                    flushAllLock.readLock().lock();
+                    for (Map.Entry<PageKey, CachedPageNew<? extends Page>> entry : lruCache.entrySet()) {
+                        CachedPageNew<? extends Page> cachedPage = entry.getValue();
+                        if (cachedPage.tryPageLockWrite()) {
+                            if (cachedPage.isFlushed() && !cachedPage.getPage().isFull()) {
+                                cachedPage.unlockPage();
+                            } else {
+                                cachedPage.setFlushed();
+
+                                if (cachedPage.isDirty()) {
+                                    PageIO<? extends Page> pageIO = cachedPage.pageIO;
+                                    Page page = cachedPage.page;
+                                    try {
+                                        pageIO.flush(page);
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                }
+                                lruCache.remove(cachedPage.key);
+                                cachedPage.unlockPage();
+                                flushedCnt++;
+                            }
+                        }
+                    }
+                    flushAllLock.readLock().unlock();
+                    synchronized (bufCnt) {
+//                    System.out.println("FlushedCnt: " + flushedCnt);
+                        bufCnt = lruCache.size();
+                    }
+                    isCleaning = false;
+                };
+
+                Thread thread = new Thread(runnable);
+                thread.start();
+//            try {
+//                thread.join();
+//            } catch (InterruptedException e) {
+//                throw new RuntimeException(e);
+//            }
+
+            }
+        } catch (Throwable e) {
+            System.out.println("here12");
+            System.out.println(e);
+            throw e;
+        } finally {
+            cleanLock.writeLock().unlock();
+        }
+
+    }
+
 
     private <T extends Page> void addToCache(CachedPageNew<T> newCachedPage) throws IOException {
         synchronized (bufCnt) { // TODO test does sync is needed here. currently is used
@@ -223,6 +289,9 @@ public class PageBuffer {
                 assert !lruCache.containsKey(newCachedPage.key);
                 lruCache.put(newCachedPage.key, newCachedPage);
 //                queue.add(newCachedPage);
+                if ((double) bufCnt * 100 / bufferPoolSize > 80) {
+                    runClean();
+                }
                 return;
             }
         }
@@ -233,9 +302,11 @@ public class PageBuffer {
 
         do {
             try {
+                cleanLock.readLock().lock();
                 cnt++;
-                if (cnt == Integer.MAX_VALUE) {
+                if (cnt == 1000) {
                     System.out.println("Cache is full. Cannot add new object. Increase cache size");
+                    System.out.println(bufCnt);
                     throw new RuntimeException("Cache is full. Cannot add new object. Increase cache size");
                 }
 
@@ -258,6 +329,19 @@ public class PageBuffer {
                     }
                 }
             } catch (ConcurrentModificationException ignored) {
+            } finally {
+                cleanLock.readLock().unlock();
+            }
+
+            if (victim == null) {
+                synchronized (bufCnt) { // TODO test does sync is needed here. currently is used
+                    if (bufCnt < bufferPoolSize - 1) {
+                        bufCnt++;
+                        assert !lruCache.containsKey(newCachedPage.key);
+                        lruCache.put(newCachedPage.key, newCachedPage);
+                        return;
+                    }
+                }
             }
         } while (victim == null);
 

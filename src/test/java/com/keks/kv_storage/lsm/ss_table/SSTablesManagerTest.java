@@ -1,5 +1,6 @@
 package com.keks.kv_storage.lsm.ss_table;
 
+import com.keks.kv_storage.lsm.io.SSTableReader;
 import com.keks.kv_storage.record.KVRecord;
 import com.keks.kv_storage.lsm.conf.LsmConf;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,31 @@ class SSTablesManagerTest implements TestScheduler {
 //
 ////        assertEquals(3, ssTablesManager.ssTablesSortedList.size());
 //    }
+
+    @Test
+    public void testMergeAllTables0(@TempDir Path tmpPath) throws IOException {
+        LsmConf lsmConf = new LsmConf(5, 100, 0.5);
+        SSTablesManager ssTablesManager = new SSTablesManager("", tmpPath.toFile(), lsmConf, scheduler);
+
+        ssTablesManager.createSSTableOnDisk(new ArrayList<KVRecord>() {{
+            add(new KVRecord("key1", "1"));
+            add(new KVRecord("key2", "2"));
+            add(new KVRecord("key3", "3"));
+        }}.iterator(), 3);
+
+        ssTablesManager.createSSTableOnDisk(new ArrayList<KVRecord>() {{
+            add(new KVRecord("key1"));
+            add(new KVRecord("key2"));
+            add(new KVRecord("key3"));
+        }}.iterator(), 3);
+
+        TestUtils.assertNumberOfSSTables(tmpPath.toFile(), 2);
+        ssTablesManager.mergeAllTables();
+        TestUtils.assertNumberOfSSTables(tmpPath.toFile(), 1);
+
+        SSTable v2v = SSTablesManager.readSSTable(tmpPath.resolve("2v2").toFile(), lsmConf);
+        assertEquals(v2v.inMemorySparseIndexes.size(), 0);
+    }
 
     @Test
     public void testMergeAllTables1(@TempDir Path tmpPath) throws IOException {

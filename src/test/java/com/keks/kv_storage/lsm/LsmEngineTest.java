@@ -93,11 +93,11 @@ class LsmEngineTest implements TestScheduler {
     }
 
     @Test
-    public void testFlushGetDelete(@TempDir Path tmpPath) throws IOException {
+    public void testFlushGetDelete(@TempDir Path tmpPath) throws IOException, InterruptedException {
         String kvTableName = "test1";
         File tableDir = tmpPath.resolve(kvTableName).toFile();
         tableDir.mkdir();
-        LsmConf lsmConf = new LsmConf(3, 5, 0.5);
+        LsmConf lsmConf = new LsmConf(3, 4, 0.5, true);
         LsmEngine lsmEngine = LsmEngine.createNewTable("", tableDir, lsmConf, scheduler);
 
         lsmEngine.remove("key10"); // 1 record in memory
@@ -144,7 +144,7 @@ class LsmEngineTest implements TestScheduler {
         String kvTableName = "test1";
         File tableDir = tmpPath.resolve(kvTableName).toFile();
         tableDir.mkdir();
-        LsmConf lsmConf = new LsmConf(3, 5, 0.5);
+        LsmConf lsmConf = new LsmConf(3, 4, 0.5, true);
         LsmEngine lsmEngine = LsmEngine.createNewTable("", tableDir, lsmConf, scheduler);
 
         lsmEngine.remove("key10"); // 1 record in memory

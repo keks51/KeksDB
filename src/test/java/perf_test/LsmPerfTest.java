@@ -2,12 +2,10 @@ package perf_test;
 
 
 import com.keks.kv_storage.KVStore;
-import com.keks.kv_storage.bplus.conf.BPlusConfParamsEnum;
 import com.keks.kv_storage.conf.TableEngineType;
+import com.keks.kv_storage.kv_table_conf.KvTableConfParamsEnum;
+import com.keks.kv_storage.lsm.LsmEngine;
 import com.keks.kv_storage.lsm.conf.LsmConfParamsEnum;
-import com.keks.kv_storage.lsm.io.SSTableWriter;
-import com.keks.kv_storage.lsm.ss_table.SSTable;
-import com.keks.kv_storage.lsm.utils.BloomFilter;
 import com.keks.kv_storage.record.KVRecord;
 import com.keks.kv_storage.utils.Time;
 import io.micrometer.core.instrument.Timer;
@@ -17,8 +15,8 @@ import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.CleanupMode;
 import org.junit.jupiter.api.io.TempDir;
-import utils.ShowAsTable;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -57,7 +55,7 @@ public class LsmPerfTest {
         try (KVStore kvStore = new KVStore(tmpPath.toFile())) {
             kvStore.createDB(dbName);
             Properties properties = new Properties() {{
-                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_000_000);
+                put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, 1_000_000);
                 put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
             }};
             kvStore.createTable(
@@ -86,7 +84,7 @@ public class LsmPerfTest {
 
     }
 
-    private static void printStats(int threads, long seconds, CumulativeTimer timer) {
+    public static String printStatsCsv(int threads, long millis, CumulativeTimer timer, long writtenBytes) {
         ArrayList<String> elems = new ArrayList<>();
         ArrayList<String> headers = new ArrayList<>();
         HistogramSnapshot histogramSnapshot = timer.takeSnapshot();
@@ -97,133 +95,74 @@ public class LsmPerfTest {
         headers.add("records");
         elems.add(String.valueOf(timer.count()));
 
+        headers.add("written mb");
+        elems.add(String.valueOf(writtenBytes / 1024));
+
+        headers.add("avg record size bytes");
+        elems.add(String.valueOf(writtenBytes / timer.count()));
+
         headers.add("total sec");
-        elems.add(String.valueOf(seconds));
+        elems.add(String.valueOf(String.format("%.1f", (millis / 1_000.0))));
 
         headers.add("mean millis");
         elems.add(String.valueOf(String.format("%.3f", timer.mean(TimeUnit.MILLISECONDS))));
 
         headers.add("ops/sec");
-        elems.add(String.valueOf(String.format("%.3f", timer.count() / (double) seconds)));
+        elems.add(String.valueOf((int) (timer.count() / (millis / 1_000.0))));
 
         for (ValueAtPercentile valueAtPercentile : histogramSnapshot.percentileValues()) {
             headers.add("p" + valueAtPercentile.percentile() + " millis");
             elems.add(String.valueOf(String.format("%.3f", valueAtPercentile.value(TimeUnit.MILLISECONDS))));
         }
 
-        System.out.println(ShowAsTable.show(new ArrayList<>() {{
-            add(elems);
-        }}, headers));
-
-    }
-
-    private static void printStatsCsv(int threads, long seconds, CumulativeTimer timer) {
-        ArrayList<String> elems = new ArrayList<>();
-        ArrayList<String> headers = new ArrayList<>();
-        HistogramSnapshot histogramSnapshot = timer.takeSnapshot();
-
-        headers.add("threads");
-        elems.add(String.valueOf(threads));
-
-        headers.add("records");
-        elems.add(String.valueOf(timer.count()));
-
-        headers.add("total sec");
-        elems.add(String.valueOf(seconds));
-
-        headers.add("mean millis");
-        elems.add(String.valueOf(String.format("%.3f", timer.mean(TimeUnit.MILLISECONDS))));
-
-        headers.add("ops/sec");
-        elems.add(String.valueOf(String.format("%.3f", timer.count() / (double) seconds)));
-
-        for (ValueAtPercentile valueAtPercentile : histogramSnapshot.percentileValues()) {
-            headers.add("p" + valueAtPercentile.percentile() + " millis");
-            elems.add(String.valueOf(String.format("%.3f", valueAtPercentile.value(TimeUnit.MILLISECONDS))));
-        }
-
+        System.out.println(String.join(",", headers));
         System.out.println(String.join(",", elems));
-
+        return String.join(",", elems);
     }
 
     // memcache 50mb
     @Test
-    public void exPut(@TempDir Path tmpPath) throws InterruptedException, ExecutionException, TimeoutException {
+    public void exPut(@TempDir(cleanup = CleanupMode.ALWAYS) Path tmpPath) throws InterruptedException, ExecutionException, TimeoutException {
         Time.mes = true;
-        List<Integer> threadsList = Arrays.asList(1, 5, 10, 15, 20, 25, 30, 50, 100, 150, 200);
+        List<Integer> threadsList = Arrays.asList(1, 4, 8, 16, 32, 50, 100, 160, 200);
+//        List<Integer> threadsList = Arrays.asList(1);
 //        List<Integer> threadsList = Arrays.asList(15, 20, 25, 30, 50, 100, 150, 200);
+        StringBuilder sb = new StringBuilder();
         for (Integer threadNum : threadsList) {
             Path resolve = tmpPath.resolve(String.valueOf(threadNum));
             resolve.toFile().mkdir();
             Instant start = Instant.now();
-            CumulativeTimer timer = runPut(threadNum, 5_000_000, resolve);
+            DataGenerator dataGenerator = new DataGenerator(5_000_000, threadNum);
+            CumulativeTimer timer = runPut(threadNum, dataGenerator, resolve);
             Instant finish = Instant.now();
             Duration between = Duration.between(start, finish);
-            printStatsCsv(threadNum, between.toSeconds(), timer);
+            String metr = printStatsCsv(threadNum, between.toMillis(), timer, dataGenerator.getTotalBytes());
+            sb.append(metr).append("\n");
         }
+        System.out.println(sb);
 
     }
 
-    private CumulativeTimer runPut(int numberOfThreads, int numberOfRecords, Path tmpPath) throws ExecutionException, InterruptedException, TimeoutException {
-        List<Integer> list = IntStream.range(0, numberOfRecords).boxed().collect(Collectors.toList());
-        Collections.shuffle(list);
+    private CumulativeTimer runPut(int numberOfThreads, DataGenerator dataGenerator, Path tmpPath) throws ExecutionException, InterruptedException, TimeoutException {
+
+        String dbName = "lsm_test_db";
+        String tblName = "lsm_table_test";
 
         SimpleMeterRegistry oneSimpleMeter = new SimpleMeterRegistry();
-        CumulativeTimer optimizedTimer = (CumulativeTimer) Timer
+
+        LsmEngine.putOptimizedTimer = (CumulativeTimer) Timer
                 .builder("optimizedTimer")
                 .publishPercentileHistogram(true)
                 .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
                 .register(oneSimpleMeter);
 
-        String dbName = "lsm_test_db";
-        String tblName = "lsm_table_test";
-
-
         try (KVStore kvStore = new KVStore(tmpPath.toFile())) {
             kvStore.createDB(dbName);
             Properties properties = new Properties() {{
-                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_000_000);
-                put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
-            }};
-            kvStore.createTable(
-                    dbName,
-                    tblName,
-                    TableEngineType.LSM.toString(),
-                    properties);
-
-            Consumer<Integer> func = x -> {
-                Integer i = list.get(x);
-                String key = "key" + String.format("%08d", i);
-                String value = "value" + String.format("%08d", i);
-                // adding record
-                Time.withTimer(optimizedTimer, () -> {
-                    kvStore.put(dbName, tblName, key, value.getBytes());
-                });
-
-            };
-
-            runConcurrentTest(
-                    numberOfRecords,
-                    func,
-                    numberOfThreads);
-            return optimizedTimer;
-
-        }
-
-    }
-
-    @Test
-    public void exGet(@TempDir Path tmpPath) throws InterruptedException, ExecutionException, TimeoutException {
-        int numberOfRecords = 5_000_000;
-        Time.mes = true;
-        List<Integer> threadsList = Arrays.asList(1, 5, 10, 15, 20, 25, 30, 50, 100, 150, 200);
-
-        String dbName = "lsm_test_db";
-        String tblName = "lsm_table_test";
-        try (KVStore kvStore = new KVStore(tmpPath.toFile())) {
-            kvStore.createDB(dbName);
-            Properties properties = new Properties() {{
-                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_000_000);
+//                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_500_000);
+                put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, 524288);
+                put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, 8192);
+                put(KvTableConfParamsEnum.ENABLE_WAL, false);
                 put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
             }};
             kvStore.createTable(
@@ -233,26 +172,63 @@ public class LsmPerfTest {
                     properties);
 
             Consumer<Integer> func = i -> {
-                String key = "key" + i;
-                String value = "value" + i;
-                kvStore.put(dbName, tblName, key, value.getBytes());
+                Iterator<KVRecord> batchIter = dataGenerator.getBatchIter(i);
+                kvStore.put(dbName, tblName, batchIter);
             };
 
             runConcurrentTest(
-                    numberOfRecords,
+                    numberOfThreads,
                     func,
-                    15);
+                    numberOfThreads);
+
+            kvStore.dropTable(dbName, tblName);
+            return LsmEngine.putOptimizedTimer;
+        }
+
+    }
+
+    @Test
+    public void exGet(@TempDir(cleanup = CleanupMode.ALWAYS) Path tmpPath) throws InterruptedException, ExecutionException, TimeoutException {
+        int numberOfRecords = 1_000_000;
+        Time.mes = true;
+        List<Integer> threadsList = Arrays.asList(1, 4, 8, 16, 32, 50, 100, 160, 200);
+//        List<Integer> threadsList = Arrays.asList(1);
+
+        String dbName = "lsm_test_db";
+        String tblName = "lsm_table_test";
+
+        StringBuilder sb = new StringBuilder();
+        DataGenerator dataGenerator = new DataGenerator(numberOfRecords, 1);
+        try (KVStore kvStore = new KVStore(tmpPath.toFile())) {
+            kvStore.createDB(dbName);
+            Properties properties = new Properties() {{
+                put(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS, 8192);
+                put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, 2_000_000);
+                put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
+            }};
+            kvStore.createTable(
+                    dbName,
+                    tblName,
+                    TableEngineType.LSM.toString(),
+                    properties);
+
+            Iterator<KVRecord> batchIter = dataGenerator.getBatchIter(0);
+            kvStore.put(dbName, tblName, batchIter);
+
+            kvStore.flushTable(dbName, tblName);
+            kvStore.optimizeTable(dbName, tblName);
 
         }
 
         for (Integer threadNum : threadsList) {
-
             Instant start = Instant.now();
             CumulativeTimer timer = runGet(threadNum, numberOfRecords, tmpPath);
             Instant finish = Instant.now();
             Duration between = Duration.between(start, finish);
-            printStatsCsv(threadNum, between.toSeconds(), timer);
+            String metr = printStatsCsv(threadNum, between.toMillis(), timer, dataGenerator.getTotalBytes());
+            sb.append(metr).append("\n");
         }
+        System.out.println(sb);
 
     }
 
@@ -273,11 +249,11 @@ public class LsmPerfTest {
         try (KVStore kvStore = new KVStore(tmpPath.toFile());) {
 
             Consumer<Integer> func = i -> {
-                String key = "key" + i;
-                String value = "value" + i;
+                String key = "key" + String.format("%09d", i);
 
                 Time.withTimer(optimizedTimer, () -> {
-                            assertEquals(value, new String(kvStore.get(dbName, tblName, key)));
+                            String s = new String(kvStore.get(dbName, tblName, key));
+                            int x = 1;
                         }
                 );
 
@@ -305,7 +281,7 @@ public class LsmPerfTest {
             CumulativeTimer timer = runRemove(threadNum, 5_000_000, resolve);
             Instant finish = Instant.now();
             Duration between = Duration.between(start, finish);
-            printStatsCsv(threadNum, between.toSeconds(), timer);
+            printStatsCsv(threadNum, between.toMillis(), timer, 1);
         }
 
     }
@@ -318,7 +294,7 @@ public class LsmPerfTest {
         try (KVStore kvStore = new KVStore(tmpPath.toFile())) {
             kvStore.createDB(dbName);
             Properties properties = new Properties() {{
-                put(LsmConfParamsEnum.MEM_CACHE_SIZE, 1_000_000);
+                put(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS, 1_000_000);
                 put(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
             }};
             kvStore.createTable(

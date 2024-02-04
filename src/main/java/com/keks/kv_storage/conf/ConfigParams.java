@@ -1,5 +1,6 @@
 package com.keks.kv_storage.conf;
 
+
 public class ConfigParams {
 
     public static final String DATABASE_NAME = "DATABASE_NAME";
@@ -12,18 +13,18 @@ public class ConfigParams {
     public static final String BPLUS_FREE_SPACE_CHECKER_CACHE_MAX = "BPLUS_FREE_SPACE_CHECKER_CACHE_MAX";
     public static final String BPLUS_FREE_SPACE_CHECKER_CACHE_INIT = "BPLUS_FREE_SPACE_CHECKER_CACHE_INIT";
     public static final String LSM_MAX_SSTABLES = "LSM_MAX_SSTABLES";
+    public static final String LSM_SYNC_WITH_THREAD_FLUSH = "LSM_SYNC_WITH_THREAD_FLUSH";
     public static final String LSM_ENABLE_MERGE_IF_MAX_SSTABLES = "ENABLE_MERGE_IF_MAX_SSTABLES";
     public static final String LSM_ENABLE_BACKGROUND_MERGE = "ENABLE_BACKGROUND_MERGER";
     public static final String LSM_BACKGROUND_MERGE_INIT_DELAY = "BACKGROUND_MERGE_INIT_DELAY";
     public static final String LSM_TRIGGER_BACKGROUND_MERGE_AFTER_SEC = "TRIGGER_SSTABLES_MERGE_AFTER_SEC";
-    public static final String LSM_SPARSE_INDEX_SIZE = "LSM_SPARSE_INDEX_SIZE";
+    public static final String LSM_SPARSE_INDEX_SIZE_RECORDS = "LSM_SPARSE_INDEX_SIZE_RECORDS";
     public static final String LSM_MEM_CACHE_SIZE = "LSM_MEM_CACHE_SIZE";
     public static final String LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE = "LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE";
     public static final String KV_TABLE_COMMIT_LOG_PARALLELISM = "KV_TABLE_COMMIT_LOG_PARALLELISM";
+    public static final String KV_TABLE_ENABLE_WAL = "KV_TABLE_ENABLE_WAL";
 
     public static final String KV_TABLE_ENABLE_PERIODIC_CHECKPOINT = "KV_TABLE_ENABLE_PERIODIC_CHECKPOINT";
     public static final String KV_TABLE_TRIGGER_CHECKPOINT_AFTER_SEC = "KV_TABLE_TRIGGER_CHECKPOINT_AFTER_SEC";
-
-
 
 }

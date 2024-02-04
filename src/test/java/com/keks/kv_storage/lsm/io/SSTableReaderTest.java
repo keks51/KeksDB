@@ -55,10 +55,10 @@ public class SSTableReaderTest {
     public void testReadIndex(@TempDir Path dir) throws IOException {
         int numberOfKeysInIndex = 13;
         LsmConf lsmConf = new LsmConf(numberOfKeysInIndex, 10, 0.5);
-        int rec = 10_000;
+        int rec = 10_0;
         ArrayList<KVRecord> records = new ArrayList<>(rec);
         for (int i = 0; i < rec; i++) {
-            records.add(new KVRecord("key" + i, ("value" + i).getBytes()));
+            records.add(new KVRecord("key" + String.format("%08d", i), ("value" + i).getBytes()));
         }
         createSSTable(dir, lsmConf, records);
 
@@ -76,25 +76,23 @@ public class SSTableReaderTest {
 
         {
             SSTableReader ssTableReader = new SSTableReader(dir.toFile(), numberOfKeysInIndex);
-            ArrayList<IndexedKey> partialIndexes = ssTableReader.readSparseIndex();
+            ArrayList<IndexedKey> sparseIndexes = ssTableReader.readSparseIndex();
             FileChannel indexChannel = FileChannel.open(new File(dir.toFile(), DENSE_INDEX_FILE_NAME).toPath(), StandardOpenOption.READ);
-            for (int i = 0; i < partialIndexes.size(); i++) {
-                IndexedKey partialIndex = partialIndexes.get(i);
-                long blockStartPos = partialIndex.posInReferenceFile;
+            for (int i = 0; i < sparseIndexes.size(); i++) {
+                IndexedKey sparseIndex = sparseIndexes.get(i);
+                long blockStartPos = sparseIndex.posInReferenceFile;
                 SSTableReader.DenseIndexReader denseIndexReader = new SSTableReader.DenseIndexReader(indexChannel, numberOfKeysInIndex, blockStartPos, 32 * 1024);
                 int cnt = 0;
                 while (denseIndexReader.hasNext()) {
                     denseIndexReader.next();
                     cnt++;
                 }
-                if (i == partialIndexes.size() - 2) { // only works when rec = 10_000;
+                if (i == sparseIndexes.size() - 2) { // only works when rec = 10_000;
                     assertEquals(rec - numberOfKeysInIndex * (rec / numberOfKeysInIndex), cnt);
-                } else if (i == partialIndexes.size() - 1) { // only works when rec = 10_000;
+                } else if (i == sparseIndexes.size() - 1) { // only works when rec = 10_000;
                     assertEquals(1, cnt); // maxKey
                 } else {
-                    if (numberOfKeysInIndex != cnt) {
-                        assertEquals(numberOfKeysInIndex, cnt);
-                    }
+                    assertEquals(numberOfKeysInIndex, cnt);
 
                 }
 
@@ -112,8 +110,6 @@ public class SSTableReaderTest {
             records.add(new KVRecord("key" + i, ("value" + i).getBytes()));
         }
         createSSTable(dir, lsmConf, records);
-
-
         {
             FileChannel dataChannel = FileChannel.open(new File(dir.toFile(), DATA_FILE_NAME).toPath(), StandardOpenOption.READ);
             SSTableReader.DataReader dataReader = new SSTableReader.DataReader(dataChannel, 0, 32 * 1024);
@@ -177,8 +173,59 @@ public class SSTableReaderTest {
         }
     }
 
+
     @Test
-    public void testFindKeyInIndexBlock(@TempDir Path dir) throws IOException, ExecutionException, InterruptedException, TimeoutException {
+    public void testFindKeyInIndexBlock(@TempDir Path parentDir) throws IOException, ExecutionException, InterruptedException, TimeoutException {
+
+        for (int numberOfKeysInIndex = 1; numberOfKeysInIndex < 20; numberOfKeysInIndex++) {
+            for (int rec = 1; rec < 100; rec++) {
+                Path dir = parentDir.resolve(numberOfKeysInIndex + "").resolve(rec + "");
+                dir.toFile().mkdirs();
+
+                LsmConf lsmConf = new LsmConf(numberOfKeysInIndex, 10, 0.5);
+                ArrayList<KVRecord> records = new ArrayList<>(rec);
+                for (int i = 0; i < rec; i++) {
+                    records.add(new KVRecord("key" + String.format("%05d", i), ("value" + i).getBytes()));
+                }
+                createSSTable(dir, lsmConf, records);
+
+                SSTableReader ssTableReader = new SSTableReader(dir.toFile(), numberOfKeysInIndex);
+                ArrayList<IndexedKey> sparseIndexedKeys = ssTableReader.readSparseIndex();
+
+                for (int sparseIdx = 0; sparseIdx < sparseIndexedKeys.size(); sparseIdx++) {
+                    IndexedKey sparseIndex = sparseIndexedKeys.get(sparseIdx);
+                    long indexBlockStartPos = sparseIndex.posInReferenceFile;
+                    for (int keyId = 0; keyId < rec; keyId++) {
+                        String expKey = "key" + String.format("%05d", keyId);
+                        IndexedKey keyInIndexBlock = ssTableReader.findKeyInDenseIndex(expKey, indexBlockStartPos, sparseIndex.refRecordLen);
+                        int leftBound = sparseIdx * numberOfKeysInIndex;
+                        int rightBound = leftBound + numberOfKeysInIndex;
+
+                        // last block
+                        if (sparseIdx == sparseIndexedKeys.size() - 1) {
+                            if (keyId == rec - 1) {
+                                assertEquals(expKey, keyInIndexBlock.key);
+                            }else {
+                                assertNull(keyInIndexBlock);
+                            }
+                        } else {
+                            // regular block
+                            if (leftBound <= keyId && keyId < rightBound ) { // right condition is for maxKey
+                                assertEquals(expKey, keyInIndexBlock.key);
+                            } else {
+                                assertNull(keyInIndexBlock);
+                            }
+                        }
+
+                    }
+                }
+            }
+
+        }
+    }
+
+    @Test
+    public void testFindKeyInIndexBlockConcurrent(@TempDir Path dir) throws IOException, ExecutionException, InterruptedException, TimeoutException {
         int numberOfKeysInIndex = 13;
         LsmConf lsmConf = new LsmConf(numberOfKeysInIndex, 10, 0.5);
         int rec = 1_000;
@@ -189,25 +236,32 @@ public class SSTableReaderTest {
         createSSTable(dir, lsmConf, records);
 
         SSTableReader ssTableReader = new SSTableReader(dir.toFile(), numberOfKeysInIndex);
-        ArrayList<IndexedKey> partialIndexedKeys = ssTableReader.readSparseIndex();
+        ArrayList<IndexedKey> sparseIndexedKeys = ssTableReader.readSparseIndex();
 
-        Consumer<Integer> func = index -> {
+        Consumer<Integer> func = sparseIdx -> {
             try {
-                IndexedKey partialIndex = partialIndexedKeys.get(index);
-                long indexBlockStartPos = partialIndex.posInReferenceFile;
-                for (int i = 0; i < rec; i++) {
-                    String expKey = "key" + String.format("%05d", i);
-                    IndexedKey keyInIndexBlock;
-                    keyInIndexBlock = ssTableReader.findKeyInDenseIndex(expKey, indexBlockStartPos);
-                    int leftBound = index * numberOfKeysInIndex;
+                IndexedKey sparseIndex = sparseIndexedKeys.get(sparseIdx);
+                long indexBlockStartPos = sparseIndex.posInReferenceFile;
+                for (int keyId = 0; keyId < rec; keyId++) {
+                    String expKey = "key" + String.format("%05d", keyId);
+                    IndexedKey keyInIndexBlock = ssTableReader.findKeyInDenseIndex(expKey, indexBlockStartPos, sparseIndex.refRecordLen);
+                    int leftBound = sparseIdx * numberOfKeysInIndex;
                     int rightBound = leftBound + numberOfKeysInIndex;
-                    if (leftBound <= i && i < rightBound || (i == rec - 1 && i == leftBound - 2)) { // right condition is for maxKey
-                        assertEquals(expKey, keyInIndexBlock.key);
-                    } else {
-                        if (keyInIndexBlock != null) {
-                            System.out.println();
+
+                    // last block
+                    if (sparseIdx == sparseIndexedKeys.size() - 1) {
+                        if (keyId == rec - 1) {
+                            assertEquals(expKey, keyInIndexBlock.key);
+                        }else {
+                            assertNull(keyInIndexBlock);
                         }
-                        assertNull(keyInIndexBlock);
+                    } else {
+                        // regular block
+                        if (leftBound <= keyId && keyId < rightBound ) { // right condition is for maxKey
+                            assertEquals(expKey, keyInIndexBlock.key);
+                        } else {
+                            assertNull(keyInIndexBlock);
+                        }
                     }
 
                 }
@@ -215,7 +269,97 @@ public class SSTableReaderTest {
                 throw new RuntimeException(e);
             }
         };
-        runConcurrentTest(partialIndexedKeys.size(), 1000, 10, func, 10);
+        runConcurrentTest(sparseIndexedKeys.size() - 1, 1000, 10, func, 1);
+    }
+
+    @Test
+    public void testFindKeyInDenseIndexBlock0(@TempDir Path parentDir) throws IOException, ExecutionException, InterruptedException, TimeoutException {
+        for (int numberOfKeysInIndex = 1; numberOfKeysInIndex < 20; numberOfKeysInIndex++) {
+            for (int rec = 1; rec < 100; rec++) {
+                Path dir = parentDir.resolve(numberOfKeysInIndex + "").resolve(rec + "");
+                dir.toFile().mkdirs();
+                LsmConf lsmConf = new LsmConf(numberOfKeysInIndex, 10, 0.5);
+                ArrayList<KVRecord> records = new ArrayList<>(rec);
+                for (int i = 0; i < rec; i++) {
+                    records.add(new KVRecord("key" + String.format("%05d", i), ("value" + i).getBytes()));
+                }
+                createDenseIndexSSTable(dir, lsmConf, records);
+
+                SSTableReader ssTableReader = new SSTableReader(dir.toFile(), numberOfKeysInIndex);
+                ArrayList<IndexedKey> sparseIndexedKeys = ssTableReader.readSparseIndex();
+
+                for (int sparseIdx = 0; sparseIdx < sparseIndexedKeys.size() - 1; sparseIdx++) {
+                    IndexedKey sparseIndex = sparseIndexedKeys.get(sparseIdx);
+                    long indexBlockStartPos = sparseIndex.posInReferenceFile;
+                    int indexBlockLen = sparseIndex.refRecordLen;
+                    String leftKey = sparseIndex.key;
+                    String rightKey = sparseIndexedKeys.get(sparseIdx + 1).key;
+
+                    for (int keyNum = 0; keyNum < rec; keyNum++) {
+                        String expKey = "key" + String.format("%05d", keyNum);
+                        IndexedKey keyInIndexBlock = ssTableReader.findKeyInDenseBlockIndex(expKey, indexBlockStartPos, indexBlockLen);
+                        if (expKey.compareTo(leftKey) >= 0 && (expKey.compareTo(rightKey) < 0)
+                                || leftKey.equals(rightKey)
+                                || keyNum == rec - 1 && sparseIndexedKeys.get(sparseIdx + 1).posInReferenceFile == indexBlockStartPos
+                        ) {
+                            assertEquals(expKey, keyInIndexBlock.key);
+                        } else {
+                            assertNull(keyInIndexBlock);
+                        }
+                    }
+
+                }
+
+                if (numberOfKeysInIndex != 1 && rec % numberOfKeysInIndex != 1) { // last block should contain more than one key
+                    IndexedKey maxKey = sparseIndexedKeys.get(sparseIndexedKeys.size() - 1);
+                    IndexedKey preMaxKey = sparseIndexedKeys.get(sparseIndexedKeys.size() - 2);
+                    IndexedKey keyInDenseIndex = ssTableReader.findKeyInDenseBlockIndex(maxKey.key, preMaxKey.posInReferenceFile, preMaxKey.refRecordLen);
+                    assertEquals(maxKey.key, keyInDenseIndex.key);
+                }
+            }
+        }
+    }
+
+
+    @Test
+    public void testFindKeyInDenseIndexBlockConcurrent(@TempDir Path dir) throws IOException, ExecutionException, InterruptedException, TimeoutException {
+        int numberOfKeysInIndex = 13;
+        LsmConf lsmConf = new LsmConf(numberOfKeysInIndex, 10, 0.5);
+        int rec = 1_000;
+        ArrayList<KVRecord> records = new ArrayList<>(rec);
+        for (int i = 0; i < rec; i++) {
+            records.add(new KVRecord("key" + String.format("%05d", i), ("value" + i).getBytes()));
+        }
+        createDenseIndexSSTable(dir, lsmConf, records);
+
+        SSTableReader ssTableReader = new SSTableReader(dir.toFile(), numberOfKeysInIndex);
+        ArrayList<IndexedKey> sparseIndexedKeys = ssTableReader.readSparseIndex();
+
+        Consumer<Integer> func = sparseIdx -> {
+            try {
+                IndexedKey sparseIndex = sparseIndexedKeys.get(sparseIdx);
+                long indexBlockStartPos = sparseIndex.posInReferenceFile;
+                int indexBlockLen = sparseIndex.refRecordLen;
+                String leftKey = sparseIndex.key;
+                String rightKey = sparseIndexedKeys.get(sparseIdx + 1).key;
+
+                for (int keyNum = 0; keyNum < rec; keyNum++) {
+                    String expKey = "key" + String.format("%05d", keyNum);
+                    IndexedKey keyInIndexBlock = ssTableReader.findKeyInDenseBlockIndex(expKey, indexBlockStartPos, indexBlockLen);
+                    if (expKey.compareTo(leftKey) >= 0 && (expKey.compareTo(rightKey) < 0)
+                            || leftKey.equals(rightKey)
+                            || keyNum == rec - 1 && sparseIndexedKeys.get(sparseIdx + 1).posInReferenceFile == indexBlockStartPos
+                    ) {
+                        assertEquals(expKey, keyInIndexBlock.key);
+                    } else {
+                        assertNull(keyInIndexBlock);
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        runConcurrentTest(sparseIndexedKeys.size() - 1, 1000, 10, func, 1);
     }
 
     @Test
@@ -275,6 +419,13 @@ public class SSTableReaderTest {
         records.sort(Comparator.comparing(o -> o.key));
         File dirPath = dir.toFile();
         SSTableWriter ssTableOnDiskCreator = new SSTableWriter(dirPath, lsmConf, records.size());
+        ssTableOnDiskCreator.createSSTable(records.iterator());
+    }
+
+    public static void createDenseIndexSSTable(Path dir, LsmConf lsmConf, ArrayList<KVRecord> records) throws IOException {
+        records.sort(Comparator.comparing(o -> o.key));
+        File dirPath = dir.toFile();
+        SSTableWriterWithDenseBlock ssTableOnDiskCreator = new SSTableWriterWithDenseBlock(dirPath, lsmConf, records.size());
         ssTableOnDiskCreator.createSSTable(records.iterator());
     }
 

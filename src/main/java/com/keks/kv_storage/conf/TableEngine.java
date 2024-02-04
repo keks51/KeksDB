@@ -5,6 +5,8 @@ import com.keks.kv_storage.query.Query;
 import com.keks.kv_storage.query.QueryIterator;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 
 public abstract class TableEngine {
@@ -13,7 +15,15 @@ public abstract class TableEngine {
 
     public abstract void put(KVRecord kvRecord) throws IOException;
 
+    public abstract void putBatch(ArrayList<KVRecord> kvRecords) throws IOException;
+
+    public abstract void putBatch(Iterator<KVRecord> kvRecords) throws IOException;
+
     public abstract void remove(String key) throws IOException;
+
+    public abstract void removeBatch(ArrayList<KVRecord> kvRecords) throws IOException;
+
+    public abstract void removeBatch(Iterator<KVRecord> kvRecords) throws IOException;
 
     public abstract KVRecord get(String key) throws IOException;
 

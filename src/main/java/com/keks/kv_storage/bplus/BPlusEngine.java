@@ -24,15 +24,23 @@ import com.keks.kv_storage.ex.NotImplementedException;
 import com.keks.kv_storage.io.JsonFileRW;
 import com.keks.kv_storage.query.Query;
 import com.keks.kv_storage.query.QueryIterator;
+import com.keks.kv_storage.utils.Time;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.cumulative.CumulativeTimer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
 public class BPlusEngine extends TableEngine {
+
+    public static final SimpleMeterRegistry oneSimpleMeter = new SimpleMeterRegistry();
+
 
     public final TreeKeyNodePageManager treeKeyNodePageManager;
     private final TreeLeafNodePageManager treeLeafNodePageManager;
@@ -103,14 +111,68 @@ public class BPlusEngine extends TableEngine {
         addWithWriteLock(new KVRecord(new String(key), value));
     }
 
+
+    public static AtomicInteger recordsCnt = new AtomicInteger();
+
+    @Override
+    public void putBatch(ArrayList<KVRecord> kvRecords) throws IOException {
+        for (KVRecord kvRecord : kvRecords) {
+            put(kvRecord);
+        }
+    }
+
+    @Override
+    public void putBatch(Iterator<KVRecord> kvRecords) throws IOException {
+        while (kvRecords.hasNext()){
+            put(kvRecords.next());
+        }
+    }
+
     @Override
     public void put(KVRecord kvRecord) throws IOException {
-        addWithWriteLock(kvRecord);
+        int i = recordsCnt.incrementAndGet();
+        if (i % 100_000 == 0) {
+            System.out.println("Bplus inserted: " + i);
+        }
+        Time.withTimer(putOptimizedTimer, () -> {
+            addWithWriteLock(kvRecord);
+        });
+    }
+
+    public static CumulativeTimer putOptimizedTimer = (CumulativeTimer) Timer
+            .builder("optimizedTimer")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
+    public static CumulativeTimer removeOptimizedTimer = (CumulativeTimer) Timer
+            .builder("optimizedTimer")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
+    protected void put(String key, String value) throws IOException {
+        put(new KVRecord(key, value.getBytes()));
+    }
+
+    @Override
+    public void removeBatch(ArrayList<KVRecord> kvRecords) throws IOException {
+        for (KVRecord kvRecord : kvRecords) {
+            remove(kvRecord.key);
+        }
+    }
+
+    public void removeBatch(Iterator<KVRecord> kvRecords) throws IOException {
+        while (kvRecords.hasNext()){
+            remove(kvRecords.next().key);
+        }
     }
 
     @Override
     public void remove(String key) throws IOException {
-        deleteWithWriteLock(key);
+        Time.withTimer(removeOptimizedTimer, () -> {
+            deleteWithWriteLock(key);
+        });
     }
 
     public void addWithWriteLock(KVRecord keyDataTuple) throws IOException {
@@ -268,7 +330,7 @@ public class BPlusEngine extends TableEngine {
 //                        treeNodePageManager,
 //                        indexPageManager,
 //                        dataPageManager);
-               leafPageId = treeKeyNodePageManager.bplusTreeRuntimeParameters.getMostLeftLeafPageId();
+                leafPageId = treeKeyNodePageManager.bplusTreeRuntimeParameters.getMostLeftLeafPageId();
             }
 
 //            assert (leafPageId > 0 && leafPageId < 1000);
@@ -292,7 +354,8 @@ public class BPlusEngine extends TableEngine {
             CachedPageNew<TreeLeafNode> cachedPage = treeLeafNodePageManager.getAndLockReadLeafNodePage(mostLeftLeafPageId);
             if (treeKeyNodePageManager.bplusTreeRuntimeParameters.getMostLeftLeafPageId() == mostLeftLeafPageId) {
                 do {
-                    if (cachedPage == null) cachedPage = treeLeafNodePageManager.getAndLockReadLeafNodePage(mostLeftLeafPageId);
+                    if (cachedPage == null)
+                        cachedPage = treeLeafNodePageManager.getAndLockReadLeafNodePage(mostLeftLeafPageId);
                     TreeLeafNode leafNode = cachedPage.getPage();
                     mostLeftLeafPageId = leafNode.getRightSibling();
                     for (int i = 0; i < leafNode.leafKeys.getNextKeyNum(); i++) {
@@ -355,7 +418,8 @@ public class BPlusEngine extends TableEngine {
             treeKeyNodePageManager.unlockPage(page);
             printKey(page.pageId, sb);
         }
-        if (mostLeftKeyPageId == -1) mostLeftKeyPageId = treeKeyNodePageManager.bplusTreeRuntimeParameters.getMostLeftLeafPageId();
+        if (mostLeftKeyPageId == -1)
+            mostLeftKeyPageId = treeKeyNodePageManager.bplusTreeRuntimeParameters.getMostLeftLeafPageId();
         if (mostLeftKeyPageId == -1) {
             System.out.println("null");
         } else {
@@ -379,6 +443,7 @@ public class BPlusEngine extends TableEngine {
         } while (curPageId != 0);
         sb.append("\n");
     }
+
     private void printLeaf(long pageId, StringBuilder sb) throws IOException {
         long curPageId = pageId;
         CachedPageNew<TreeLeafNode> page;
@@ -455,7 +520,6 @@ public class BPlusEngine extends TableEngine {
         dataPageManager.close();
         indexPageManager.close();
     }
-
 
 
     public void bulkInsert() {

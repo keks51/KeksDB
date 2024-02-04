@@ -14,6 +14,10 @@ import com.keks.kv_storage.query.Query;
 import com.keks.kv_storage.query.QueryIterator;
 import com.keks.kv_storage.query.range.RangeKey;
 import com.keks.kv_storage.utils.SimpleScheduler;
+import com.keks.kv_storage.utils.Time;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.cumulative.CumulativeTimer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,14 +26,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 
 public class LsmEngine extends TableEngine {
 
+    public static final SimpleMeterRegistry oneSimpleMeter = new SimpleMeterRegistry();
+
     static final Logger log = LogManager.getLogger(LsmEngine.class.getName());
 
+    private final ReentrantLock spillLock = new ReentrantLock();
     private final ReentrantLock flushLock = new ReentrantLock();
 
     public final String tableName;
@@ -80,21 +89,72 @@ public class LsmEngine extends TableEngine {
         spillMemCacheToDiskIfFull();
     }
 
+    public static AtomicInteger recordsCnt = new AtomicInteger();
+    public static AtomicInteger recordsGetCnt = new AtomicInteger();
+
     @Override
     public void put(KVRecord kvRecord) throws IOException {
-        memCacheTable.put(kvRecord.key, kvRecord);
+        int i = recordsCnt.incrementAndGet();
+        if (i % 100_000 == 0) {
+            System.out.println("Lsm inserted: " + i);
+        }
+        Time.withTimer(putOptimizedTimer, () -> {
+            memCacheTable.put(kvRecord.key, kvRecord);
+        });
         spillMemCacheToDiskIfFull();
     }
 
-    protected void put(String key, String value) throws IOException {
+    @Override
+    public void putBatch(ArrayList<KVRecord> kvRecords) throws IOException {
+        for (KVRecord kvRecord : kvRecords) {
+            put(kvRecord);
+        }
+    }
+
+    @Override
+    public void putBatch(Iterator<KVRecord> kvRecords) throws IOException {
+        while (kvRecords.hasNext()) {
+            put(kvRecords.next());
+        }
+    }
+
+    public void put(String key, String value) throws IOException {
         put(new KVRecord(key, value.getBytes()));
     }
 
     @Override
+    public void removeBatch(ArrayList<KVRecord> kvRecords) throws IOException {
+        for (KVRecord kvRecord : kvRecords) {
+            remove(kvRecord.key);
+        }
+    }
+
+    public void removeBatch(Iterator<KVRecord> kvRecords) throws IOException {
+        while (kvRecords.hasNext()) {
+            remove(kvRecords.next().key);
+        }
+    }
+
+    public static CumulativeTimer putOptimizedTimer = (CumulativeTimer) Timer
+            .builder("optimizedTimer")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
+    public static CumulativeTimer removeOptimizedTimer = (CumulativeTimer) Timer
+            .builder("optimizedTimer")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
+    @Override
     public void remove(String key) throws IOException {
-        memCacheTable.remove(key);
+        Time.withTimer(removeOptimizedTimer, () -> {
+            memCacheTable.remove(key);
+        });
         spillMemCacheToDiskIfFull();
     }
+
 
     @Override
     public void forceFlush() throws IOException {
@@ -113,7 +173,7 @@ public class LsmEngine extends TableEngine {
 
     @Override
     public long getRecordsCnt(Query query) throws IOException {
-        try(QueryIterator rangeRecords = getRangeRecords(query)) {
+        try (QueryIterator rangeRecords = getRangeRecords(query)) {
             long cnt = 0;
             while (rangeRecords.hasNext()) {
                 rangeRecords.next();
@@ -140,6 +200,8 @@ public class LsmEngine extends TableEngine {
         if (res == null) {
             res = ssTablesManager.searchKey(key);
         }
+        int i = recordsGetCnt.incrementAndGet();
+        if (i % 100_000 == 0) System.out.println(i);
         if (res == null || res.isDeleted()) {
             return null;
         } else {
@@ -150,15 +212,17 @@ public class LsmEngine extends TableEngine {
     protected QueryIterator getRangeRecords(RangeKey left, RangeKey right) throws IOException {
         return getRangeRecords(new Query.QueryBuilder().withMinKey(left).withMaxKey(right).build());
     }
+
     @Override
     public QueryIterator getRangeRecords(Query query) throws IOException {
         List<SsTableRangeIterator> allParts = memCacheTable
                 .getAllParts(query.min, query.max)
                 .stream()
                 .map(iter -> new SsTableRangeIterator(
-                        iter,
-                        query.min,
-                        query.max, () ->{})
+                                iter,
+                                query.min,
+                                query.max, () -> {
+                        })
                 ).collect(Collectors.toList());
         allParts.addAll(ssTablesManager.searchRange(query.min, query.max));
         return new QueryIterator(new LsmRecordsIterator(allParts), query);
@@ -184,15 +248,64 @@ public class LsmEngine extends TableEngine {
     }
 
     private void spillMemCacheToDiskIfFull() throws IOException { // TODO create global spillCache thread
-        if (memCacheTable.isFull()) {
-            try {
-                flushLock.lock();
-                if (memCacheTable.isFull()) {
-                    flush();
+        if (memCacheTable.isFull() && !memCacheTable.isFlushing() && spillLock.tryLock()) {
+            if (memCacheTable.isFull() && !memCacheTable.isFlushing()) {
+                if (lsmConf.syncWithThreadFlush) {
+                    try {
+                        flushLock.lock();
+                        if (memCacheTable.isFull()) {
+                            System.out.println("fdfdf");
+                            log.info("spilling to disk");
+                            Time.withTime("put", this::flush
+                            );
+                        }
+                    } finally {
+                        flushLock.unlock();
+                    }
+                } else {
+                    ReentrantLock waitFlushStartedLock = new ReentrantLock();
+                    Condition flushStartedCondition = waitFlushStartedLock.newCondition();
+                    waitFlushStartedLock.lock();
+                    Runnable runnable = () -> {
+                        try {
+                            flushLock.lock();
+                            memCacheTable.setIsFlushing();
+                            System.out.println("waiting2");
+                            waitFlushStartedLock.lock();
+                            flushStartedCondition.signalAll();
+                            waitFlushStartedLock.unlock();
+                            System.out.println("running2");
+
+                            if (memCacheTable.isFull()) {
+                                System.out.println("fdfdf");
+                                log.info("spilling to disk");
+                                Time.withTime("flush", this::flush
+                                );
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        } finally {
+                            memCacheTable.unsetIsFlushing();
+                            flushLock.unlock();
+                        }
+                    };
+                    Thread thread = new Thread(runnable);
+                    thread.start();
+
+                    try {
+
+                        System.out.println("waiting1");
+                        flushStartedCondition.await();
+                        waitFlushStartedLock.unlock();
+                        System.out.println("running1");
+
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-            } finally {
-                flushLock.unlock();
             }
+
+            spillLock.unlock();
         }
     }
 
@@ -207,7 +320,7 @@ public class LsmEngine extends TableEngine {
             while (oldestPartitionIter.hasNext()) {
                 objectLinkedList.add(oldestPartitionIter.next());
             }
-            String collect = objectLinkedList.stream().map(KVRecord::toString).collect(Collectors.joining(", "));
+
 //            System.out.println("Flushing " + collect);
             ssTablesManager.createSSTableOnDisk(memCacheTable.getOldestPartitionIter(), approxRecCnt);
             log.info("Table: " + tableName + " Flushing finished");

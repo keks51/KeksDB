@@ -5,6 +5,7 @@ import com.keks.kv_storage.KVStore;
 import com.keks.kv_storage.conf.ConfigParams;
 import com.keks.kv_storage.conf.TableEngineType;
 import com.keks.kv_storage.server.http.KVHttpServer;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -58,7 +59,7 @@ class KvDslClientTest {
                     TableEngineType.LSM,
                     new HashMap<>() {
                         {
-                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 128);
+                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 128);
                             put(ConfigParams.LSM_MEM_CACHE_SIZE, 10_000);
                             put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
                         }
@@ -95,6 +96,11 @@ class KvDslClientTest {
         }
 
 
+    }
+
+    @AfterAll
+    public static void stopServer() {
+        kvHttpServer.stop();
     }
 
 }

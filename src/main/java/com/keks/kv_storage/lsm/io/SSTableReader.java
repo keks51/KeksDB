@@ -1,10 +1,14 @@
 package com.keks.kv_storage.lsm.io;
 
-import com.keks.kv_storage.record.KVRecord;
 import com.keks.kv_storage.TypeSize;
 import com.keks.kv_storage.io.FileChannelBufferedReader;
+import com.keks.kv_storage.lsm.ss_table.DenseIndexBlock;
 import com.keks.kv_storage.lsm.ss_table.IndexedKey;
+import com.keks.kv_storage.record.KVRecord;
 import com.keks.kv_storage.record.KvRow;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.cumulative.CumulativeTimer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,7 +40,8 @@ public class SSTableReader implements AutoCloseable {
         return new SSTableReader.DataReader(dataFC, fileStartPos, 32 * 1024);
     }
 
-    public IndexedKey findKeyInDenseIndex(String searchedKey, long fileStartPos) throws IOException {
+    // required for compatible with commented findKeyInDenseIndex below
+    public IndexedKey findKeyInDenseIndex(String searchedKey, long fileStartPos, int denseBlockSize) throws IOException {
         DenseIndexReader denseIndexReader =
                 new DenseIndexReader(denseIndexFC, sparseIndexSize, fileStartPos, 32 * 1024);
         while (denseIndexReader.hasNext()) {
@@ -51,8 +56,40 @@ public class SSTableReader implements AutoCloseable {
         return null;
     }
 
+        public IndexedKey findKeyInDenseBlockIndex(String searchedKey, long denseBlockStartPos, int denseBlockSize) throws IOException {
+        ByteBuffer bb = ByteBuffer.allocateDirect(denseBlockSize);
+        denseIndexFC.read(bb, denseBlockStartPos);
+        bb.rewind();
+        DenseIndexBlock denseIndexBlock = DenseIndexBlock.fromByteBuffer(bb);
+        return denseIndexBlock.findKey(searchedKey);
+    }
+
+    public static SimpleMeterRegistry oneSimpleMeter = new SimpleMeterRegistry();
+    public static CumulativeTimer readDense = (CumulativeTimer) Timer
+            .builder("readDense")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
+    public static CumulativeTimer allocate = (CumulativeTimer) Timer
+            .builder("allocate")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
+    public static CumulativeTimer build = (CumulativeTimer) Timer
+            .builder("build")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+    public static CumulativeTimer bianary = (CumulativeTimer) Timer
+            .builder("bianary")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(oneSimpleMeter);
+
     public KVRecord readKVRecord(long pos, int len) throws IOException {
-        ByteBuffer bb = ByteBuffer.allocateDirect(len);
+        ByteBuffer bb = ByteBuffer.allocate(len);
         dataFC.read(bb, pos);
         bb.rewind();
         KvRow kvRow = KvRow.fromByteBuffer(bb);

@@ -1,5 +1,7 @@
 package com.keks.kv_storage.recovery;
 
+import com.keks.kv_storage.record.KVRecord;
+
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -27,9 +29,9 @@ public class CommitLogReader implements Iterator<SeqIdKvRecord>, Closeable {
         this.queue = new PriorityQueue<>(logFiles * 10);
         this.iterators = new HashSet<>(logFiles);
         for (int i = 0; i < logFiles; i++) {
-            CommitLogReadIterator commitLogReadIterator = new CommitLogReadIterator(RecoveryManager.COMMIT_LOG_FILE_NAME + i, fileChannels[i], 10 * 1024 * 1024);
-            if (commitLogReadIterator.hasNext()) {
-                iterators.add(commitLogReadIterator);
+            CommitLogReadIterator CommitLogReadIterator = new CommitLogReadIterator(RecoveryManager.COMMIT_LOG_FILE_NAME + i, fileChannels[i], 10 * 1024 * 1024);
+            if (CommitLogReadIterator.hasNext()) {
+                iterators.add(CommitLogReadIterator);
             }
         }
 
@@ -43,22 +45,28 @@ public class CommitLogReader implements Iterator<SeqIdKvRecord>, Closeable {
     private void fillQueue() {
         for (CommitLogReadIterator iterator : iterators) {
             if (iterator.hasNext()) {
-                SeqIdKvRecord next = iterator.next();
-                queue.add(next);
+                KvRecordsBatch next = iterator.next();
+                long id = 0;
+                for (KVRecord kvRecord : next.kvRecords) {
+                    queue.add(new SeqIdKvRecord(next.batchId, id, kvRecord));
+                    id++;
+                }
+
             } else {
                 iteratorsToRemove.add(iterator);
             }
         }
         if (!iteratorsToRemove.isEmpty()) {
-            for (CommitLogReadIterator commitLogReadIterator : iteratorsToRemove) {
-                iterators.remove(commitLogReadIterator);
+            for (CommitLogReadIterator CommitLogReadIterator : iteratorsToRemove) {
+                iterators.remove(CommitLogReadIterator);
             }
             iteratorsToRemove.clear();
         }
 
     }
 
-    long nextId = 0;
+    long nextSeqId = 0;
+    int nextBatchId = 0;
 
     @Override
     public boolean hasNext() {
@@ -70,15 +78,41 @@ public class CommitLogReader implements Iterator<SeqIdKvRecord>, Closeable {
         return !queueIsEmpty;
     }
 
+    //batch_id,seq_id
+    //   0       0
+    //   0       1
+    //   0       2
+    //
+
 
     @Override
     public SeqIdKvRecord next() {
-        while (queue.peek().id != nextId && !iterators.isEmpty()) { // commit logs file can contain 0,1,2,3,4,6 (5) is missed
-            fillQueue();
+        if (queue.peek().id == nextSeqId && queue.peek().batchId == nextBatchId) {
+
+        } else {
+            nextBatchId = nextBatchId + 1;
+            nextSeqId = 0;
+            while (queue.peek().batchId != nextBatchId && !iterators.isEmpty()) { // commit logs file can contain 0,1,2,3,4,6 (5) is missed
+                fillQueue();
+            }
         }
 
+
+//        while (queue.peek().batchId != nextBatchId && !iterators.isEmpty()) {
+//            fillQueue();
+//
+//        }
+
+//        while (queue.peek().batchId != nextBatchId && queue.peek().id != nextSeqId && !iterators.isEmpty()) { // commit logs file can contain 0,1,2,3,4,6 (5) is missed
+//            fillQueue();
+//        }
+
         SeqIdKvRecord record = queue.poll();
-        nextId = record.id;
+//        System.out.println(record.batchId + "_" + nextBatchId + "_" + iterators.isEmpty() + "_" + queue.peek());
+        if (queue.peek() != null && record.batchId + 1 != queue.peek().batchId){
+//            System.out.println();
+        }
+        nextSeqId = record.id + 1;
         return record;
     }
 

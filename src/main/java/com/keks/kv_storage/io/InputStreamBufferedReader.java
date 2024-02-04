@@ -16,7 +16,7 @@ public class InputStreamBufferedReader extends BufferedReader<KVRecord> { // TOD
         this.is = is;
     }
 
-    protected void readToBuffer(ByteBuffer buffer) {
+    protected void loadBuffer(ByteBuffer buffer) {
         try {
             // sometimes update can be triggered when not all bytes were read.
             // if buff contains not read bytes then shift them to buf head

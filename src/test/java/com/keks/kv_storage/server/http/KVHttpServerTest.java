@@ -23,8 +23,7 @@ import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.*;
 
-import static com.keks.kv_storage.lsm.conf.LsmConfParamsEnum.MEM_CACHE_SIZE;
-import static com.keks.kv_storage.lsm.conf.LsmConfParamsEnum.SPARSE_INDEX_SIZE;
+import static com.keks.kv_storage.lsm.conf.LsmConfParamsEnum.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 
@@ -99,7 +98,7 @@ public class KVHttpServerTest {
             HttpResponse<String> httpResponse = kvServerHttpClient
                     .sendCreateTableRequest(dbName, tableName, TableEngineType.LSM, new HashMap<>() {
                         {
-                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 3);
+                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 3);
                             put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                             put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
                         }
@@ -113,7 +112,7 @@ public class KVHttpServerTest {
             HttpResponse<String> httpResponse = kvServerHttpClient
                     .sendCreateTableRequest(dbName, tableName, TableEngineType.LSM, new HashMap<>() {
                         {
-                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 3);
+                            put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 3);
                             put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                             put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
                         }
@@ -166,8 +165,8 @@ public class KVHttpServerTest {
     public void testDropTable2() throws IOException, InterruptedException, URISyntaxException {
         String tableName = "test_drop_table2";
         Properties properties = new Properties() {{
-            put(SPARSE_INDEX_SIZE, 1);
-            put(MEM_CACHE_SIZE, 1);
+            put(SPARSE_INDEX_SIZE_RECORDS, 1);
+            put(MEM_CACHE_SIZE_RECORDS, 1);
         }};
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
         kvStore.put(dbName, tableName, "key12", "age12".getBytes());
@@ -314,14 +313,16 @@ public class KVHttpServerTest {
     public void testOptimizeTable() throws IOException, InterruptedException, URISyntaxException {
         String tableName = "test_optimize";
         Properties properties = new Properties() {{
-            put(SPARSE_INDEX_SIZE, 1);
-            put(MEM_CACHE_SIZE, 2);
+            put(SPARSE_INDEX_SIZE_RECORDS, 1);
+            put(MEM_CACHE_SIZE_RECORDS, 2);
+            put(SYNC_WITH_THREAD_FLUSH, true);
         }};
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
 
         kvStore.put(dbName, tableName, "key12", "age12".getBytes());
         kvStore.put(dbName, tableName, "key13", "age14".getBytes());
         kvStore.put(dbName, tableName, "key14", "age14".getBytes());
+        kvStore.put(dbName, tableName, "key15", "age15".getBytes());
         kvStore.flushTable(dbName, tableName);
 
         File tableDir = storageDirPath.resolve(dbName).resolve(tableName).resolve(TableEngineType.LSM.toString()).resolve("data").toFile();
@@ -336,8 +337,9 @@ public class KVHttpServerTest {
     public void testFlushTable() throws IOException, InterruptedException, URISyntaxException {
         String tableName = "test_flush";
         Properties properties = new Properties() {{
-            put(SPARSE_INDEX_SIZE, 1);
-            put(MEM_CACHE_SIZE, 2);
+            put(SPARSE_INDEX_SIZE_RECORDS, 1);
+            put(MEM_CACHE_SIZE_RECORDS, 2);
+            put(SYNC_WITH_THREAD_FLUSH, true);
         }};
         kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
 
@@ -345,6 +347,7 @@ public class KVHttpServerTest {
         kvStore.put(dbName, tableName, "key12", "age12".getBytes());
         kvStore.put(dbName, tableName, "key13", "age14".getBytes());
         kvStore.put(dbName, tableName, "key14", "age14".getBytes());
+        kvStore.put(dbName, tableName, "key15", "age16".getBytes());
         File tableDir = storageDirPath.resolve(dbName).resolve(tableName).resolve(TableEngineType.LSM.toString()).resolve("data").toFile();
         TestUtils.assertNumberOfSSTables(tableDir, 1);
 
@@ -361,8 +364,9 @@ public class KVHttpServerTest {
         File dataDir = tableDir.resolve(TableEngineType.LSM.toString()).resolve("data").toFile();
         {
             Properties properties = new Properties() {{
-                put(SPARSE_INDEX_SIZE, 1);
-                put(MEM_CACHE_SIZE, 2);
+                put(SPARSE_INDEX_SIZE_RECORDS, 1);
+                put(MEM_CACHE_SIZE_RECORDS, 2);
+                put(SYNC_WITH_THREAD_FLUSH, true);
             }};
             kvStore.createTable(dbName, tableName, TableEngineType.LSM.toString(), properties);
         }
@@ -371,6 +375,7 @@ public class KVHttpServerTest {
             kvStore.put(dbName, tableName, "key12", "age12".getBytes());
             kvStore.put(dbName, tableName, "key13", "age14".getBytes());
             kvStore.put(dbName, tableName, "key14", "age15".getBytes());
+            kvStore.put(dbName, tableName, "key15", "age16".getBytes());
             TestUtils.assertSStablesExists(dataDir, "1v1");
             kvServerHttpClient.sendMakeTableCheckpointRequest(dbName, tableName);
             TestUtils.assertSStablesExists(dataDir, "1v1", "2v1");
@@ -381,6 +386,7 @@ public class KVHttpServerTest {
             kvStore.put(dbName, tableName, "key22", "age12".getBytes());
             kvStore.put(dbName, tableName, "key23", "age14".getBytes());
             kvStore.put(dbName, tableName, "key24", "age15".getBytes());
+            kvStore.put(dbName, tableName, "key25", "age16".getBytes());
             TestUtils.assertSStablesExists(dataDir, "1v1", "2v1", "3v1");
             kvServerHttpClient.sendMakeTableCheckpointRequest(dbName, tableName);
             TestUtils.assertSStablesExists(dataDir, "1v1", "2v1", "3v1", "4v1");
@@ -431,7 +437,7 @@ public class KVHttpServerTest {
         JsonNode engineParams = jsonNode.get("engine");
         JsonNode tableParams = jsonNode.get("table");
         assertEquals("0.5", engineParams.get(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE.toUpperCase()).textValue());
-        assertEquals("128", engineParams.get(ConfigParams.LSM_SPARSE_INDEX_SIZE.toUpperCase()).textValue());
+        assertEquals("128", engineParams.get(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS.toUpperCase()).textValue());
         assertEquals("100000", engineParams.get(ConfigParams.LSM_MEM_CACHE_SIZE.toUpperCase()).textValue());
         assertEquals("10", tableParams.get(ConfigParams.KV_TABLE_COMMIT_LOG_PARALLELISM.toUpperCase()).textValue());
     }

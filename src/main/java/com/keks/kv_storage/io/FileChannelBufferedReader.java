@@ -11,7 +11,7 @@ public abstract class FileChannelBufferedReader<T extends Item> extends Buffered
 
     private final FileChannel channel;
 
-    private long filePos;
+    public long filePos;
 
     public FileChannelBufferedReader(FileChannel channel, long fileStartPos, int bufSize, int thresholdToUpdateBuf) {
         super(bufSize, thresholdToUpdateBuf);
@@ -20,7 +20,7 @@ public abstract class FileChannelBufferedReader<T extends Item> extends Buffered
     }
 
     @Override
-    protected void readToBuffer(ByteBuffer buffer) {
+    protected void loadBuffer(ByteBuffer buffer) {
         try {
             filePos = filePos - buffer.remaining();
             buffer.clear();

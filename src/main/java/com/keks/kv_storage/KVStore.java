@@ -10,6 +10,7 @@ import com.keks.kv_storage.utils.SimpleScheduler;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -100,6 +101,20 @@ public class KVStore implements AutoCloseable {
     public void put(String dbName, String tableName, String key, byte[] data) {
         withDatabaseCrudLockReadVoid(dbName, kvDatabase ->
                 withTableReadLockVoid(kvDatabase, tableName, kvTable -> kvTable.put(key, data)));
+    }
+
+    public void put(String dbName, String tableName, Iterator<KVRecord> kvRecordsIter) {
+        withDatabaseCrudLockReadVoid(dbName, kvDatabase ->
+                withTableReadLockVoid(kvDatabase, tableName, kvTable -> {
+                    kvTable.putBatch(kvRecordsIter);
+                }));
+    }
+
+    public void remove(String dbName, String tableName, Iterator<String> kvRecordsIter) {
+        withDatabaseCrudLockReadVoid(dbName, kvDatabase ->
+                withTableReadLockVoid(kvDatabase, tableName, kvTable -> {
+                    kvTable.removeBatch(kvRecordsIter);
+                }));
     }
 
     public void remove(String dbName, String tableName, String key) {

@@ -140,7 +140,7 @@ class RecoveryManagerTest {
                 {
                     client.sendCreateDBRequest(dbName1);
                     client.sendCreateTableRequest(dbName1, tableName1, TableEngineType.LSM, new HashMap<>() {{
-                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 10);
+                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 10);
                         put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                         put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5);
                     }});
@@ -149,7 +149,7 @@ class RecoveryManagerTest {
                 }
                 {
                     client.sendCreateTableRequest(dbName1, tableName2, TableEngineType.BPLUS, new HashMap<>() {{
-                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 10);
+                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 10);
                         put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                         put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5);
                     }});
@@ -160,7 +160,7 @@ class RecoveryManagerTest {
                 {
                     client.sendCreateDBRequest(dbName2);
                     client.sendCreateTableRequest(dbName2, tableName3, TableEngineType.LSM, new HashMap<>() {{
-                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 10);
+                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 10);
                         put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                         put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5);
                     }});
@@ -171,7 +171,7 @@ class RecoveryManagerTest {
                 {
                     client.sendCreateDBRequest(dbName2);
                     client.sendCreateTableRequest(dbName2, tableName4, TableEngineType.BPLUS, new HashMap<>() {{
-                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE, 10);
+                        put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, 10);
                         put(ConfigParams.LSM_MEM_CACHE_SIZE, 10);
                         put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.5);
                     }});

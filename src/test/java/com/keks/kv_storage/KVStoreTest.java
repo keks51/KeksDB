@@ -108,8 +108,8 @@ class KVStoreTest {
         assertEquals(new ArrayList<>(List.of(tableName.toUpperCase())), kvStore.getTablesList(dbName));
 
         HashMap<String, Object> conf = kvStore.getEngineParameters(dbName, tableName).getAsMap();
-        assertEquals(LsmConfParamsEnum.SPARSE_INDEX_SIZE.defaultValue, conf.get(LsmConfParamsEnum.SPARSE_INDEX_SIZE.name));
-        assertEquals(LsmConfParamsEnum.MEM_CACHE_SIZE.defaultValue, conf.get(LsmConfParamsEnum.MEM_CACHE_SIZE.name));
+        assertEquals(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS.defaultValue, conf.get(LsmConfParamsEnum.SPARSE_INDEX_SIZE_RECORDS.name));
+        assertEquals(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS.defaultValue, conf.get(LsmConfParamsEnum.MEM_CACHE_SIZE_RECORDS.name));
         assertEquals(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE.defaultValue, conf.get(LsmConfParamsEnum.BLOOM_FILTER_FALSE_POSITIVE_RATE.name));
 
         Assertions.assertThrows(

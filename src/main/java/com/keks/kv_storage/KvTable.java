@@ -1,6 +1,5 @@
 package com.keks.kv_storage;
 
-import com.keks.kv_storage.bplus.buffer.PageBuffer;
 import com.keks.kv_storage.bplus.conf.BPlusConf;
 import com.keks.kv_storage.bplus.BPlusEngine;
 import com.keks.kv_storage.kv_table_conf.KvTableConf;
@@ -14,10 +13,7 @@ import com.keks.kv_storage.lsm.LsmEngine;
 import com.keks.kv_storage.query.Query;
 import com.keks.kv_storage.query.QueryIterator;
 import com.keks.kv_storage.record.KVRecord;
-import com.keks.kv_storage.recovery.CommitLogAppender;
-import com.keks.kv_storage.recovery.JournalEvent;
-import com.keks.kv_storage.recovery.RecoveryJournal;
-import com.keks.kv_storage.recovery.RecoveryManager;
+import com.keks.kv_storage.recovery.*;
 import com.keks.kv_storage.utils.SimpleScheduler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Properties;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -96,6 +93,9 @@ public class KvTable {
                 new HashMap<>() {{
                     put("value", "string");
                 }});
+        if (!kvTableConf.enableCheckpoint) {
+            log.warn(logPrefix + " WAL is disabled");
+        }
     }
 
     public KvTable(String tableId,
@@ -111,7 +111,7 @@ public class KvTable {
                    HashMap<String, String> keySchema,
                    ArrayList<String> valueColumns,
                    HashMap<String, String> valueSchema
-                   ) throws IOException {
+    ) throws IOException {
         this.tableId = tableId;
         this.logPrefix = "[ tableId: " + tableId + " ]";
         this.engineDir = engineDir;
@@ -129,6 +129,10 @@ public class KvTable {
         this.valueFirstCol = valueColumns.get(0);
         this.valueColumns = valueColumns;
         this.valueSchema = valueSchema;
+
+        if (!kvTableConf.enableWal) {
+            log.warn(logPrefix + " WAL is disabled");
+        }
     }
 
     public void makeCheckPoint() {
@@ -169,12 +173,39 @@ public class KvTable {
         if (kvRecord.key.isEmpty()) throw new EmptyKeyException();
         if (kvRecord.valueBytes.length == 0) throw new EmptyValueException();
         try {
-            commitLogAppender.append(kvRecord);
+            if (kvTableConf.enableWal) {
+                commitLogAppender.append(kvRecord);
+            }
             tableEngine.put(kvRecord);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
+
+    public void putBatch(Iterator<KVRecord> recordsIter) {
+        try {
+            if (kvTableConf.enableWal) {
+                while (recordsIter.hasNext()) {
+                    int cnt = 0;
+                    ArrayList<KVRecord> kvRecordsList = new ArrayList<>();
+                    int bytesSize = 0;
+                    while (recordsIter.hasNext() && cnt < 1_000_000) {
+                        KVRecord kvRecord = recordsIter.next();
+                        bytesSize += kvRecord.getLen();
+                        kvRecordsList.add(kvRecord);
+                        cnt++;
+                    }
+                    commitLogAppender.appendBatch(kvRecordsList, bytesSize);
+                    tableEngine.putBatch(kvRecordsList);
+                }
+            } else {
+                tableEngine.putBatch(recordsIter);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public void put(String key, byte[] data) {
         if (key.isEmpty()) throw new EmptyKeyException();
@@ -206,11 +237,50 @@ public class KvTable {
         if (key.isEmpty()) throw new EmptyKeyException();
         try {
             KVRecord kvRecord = new KVRecord(key, "".getBytes());
-            commitLogAppender.append(kvRecord);
+            if (kvTableConf.enableWal) {
+                commitLogAppender.append(kvRecord);
+            }
             tableEngine.remove(key);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void removeBatch(Iterator<String> keysIter) {
+        try {
+            if (kvTableConf.enableWal) {
+                while (keysIter.hasNext()) {
+                    int cnt = 0;
+                    ArrayList<KVRecord> kvRecordsList = new ArrayList<>();
+                    int bytesSize = 0;
+                    while (keysIter.hasNext() && cnt < 1_000_000) {
+                        String key = keysIter.next();
+                        KVRecord kvRecord = new KVRecord(key, "".getBytes());
+                        bytesSize += kvRecord.getLen();
+                        kvRecordsList.add(kvRecord);
+                        cnt++;
+                    }
+                    commitLogAppender.appendBatch(kvRecordsList, bytesSize);
+                    tableEngine.removeBatch(kvRecordsList);
+                }
+            } else {
+                Iterator<KVRecord> recordsIter = new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        return keysIter.hasNext();
+                    }
+
+                    @Override
+                    public KVRecord next() {
+                        return new KVRecord(keysIter.next(), "".getBytes());
+                    }
+                };
+                tableEngine.removeBatch(recordsIter);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     public byte[] get(String key) {

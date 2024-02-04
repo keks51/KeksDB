@@ -8,6 +8,8 @@ import java.util.Properties;
 
 public class KvTableConf extends Params<KvTableConfParamsEnum> {
 
+    public final boolean enableWal = super.getConfParam(KvTableConfParamsEnum.ENABLE_WAL);
+
     public final int commitLogParallelism = super.getConfParam(KvTableConfParamsEnum.COMMIT_LOG_PARALLELISM);
     public final boolean enableCheckpoint = super.getConfParam(KvTableConfParamsEnum.ENABLE_PERIODIC_CHECKPOINT);
     public final int triggerCheckpointAfterSec = super.getConfParam(KvTableConfParamsEnum.TRIGGER_CHECKPOINT_AFTER_SEC);
@@ -27,10 +29,12 @@ public class KvTableConf extends Params<KvTableConfParamsEnum> {
         }});
     }
 
-    public KvTableConf(int commitLogParallelism,
+    public KvTableConf(boolean enableWal,
+                       int commitLogParallelism,
                        boolean enableCheckpoint,
                        int triggerCheckpointAfterSec) {
         super(KvTableConfParamsEnum.values(), new Properties() {{
+            put(KvTableConfParamsEnum.ENABLE_WAL, enableWal);
             put(KvTableConfParamsEnum.COMMIT_LOG_PARALLELISM, commitLogParallelism);
             put(KvTableConfParamsEnum.ENABLE_PERIODIC_CHECKPOINT, enableCheckpoint);
             put(KvTableConfParamsEnum.TRIGGER_CHECKPOINT_AFTER_SEC, triggerCheckpointAfterSec);

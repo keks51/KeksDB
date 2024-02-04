@@ -27,14 +27,12 @@ public abstract class BufferedReader<T extends Item> implements Iterator<T> {
 
     }
 
-
-
     @Override
     public boolean hasNext() {
 //        if (stop) return false; // is needed since for example forEach triggers hasNext 2 times and if readToBuffer channel or stream is closed then exception is thrown
 
         if (buffer.remaining() <= thresholdToUpdateBuf) { // TODO if record len is 4 bytes aka int then thresholdToUpdateBuf should be 4 bytes. think how to make general solution
-            readToBuffer(buffer);
+            loadBuffer(buffer);
         }
 
         boolean hasNext = buffer.remaining() > 0;
@@ -49,7 +47,7 @@ public abstract class BufferedReader<T extends Item> implements Iterator<T> {
         int remaining = buffer.remaining(); // TODO delete
         int recordLen = calcRecordLen(buffer);
         if (recordLen > remaining) {
-            readToBuffer(buffer);
+            loadBuffer(buffer);
         }
         if (recordLen > bufSize) {
             ByteBuffer byteBuffer = allocateHugeBuffer(recordLen);
@@ -69,7 +67,7 @@ public abstract class BufferedReader<T extends Item> implements Iterator<T> {
     protected abstract int calcRecordLen(ByteBuffer bb);
 
 
-    protected abstract void readToBuffer(ByteBuffer buffer);
+    protected abstract void loadBuffer(ByteBuffer buffer);
 
     private ByteBuffer allocateHugeBuffer(int size) {
         ByteBuffer hugeBuffer = ByteBuffer.allocateDirect(size);
@@ -79,7 +77,7 @@ public abstract class BufferedReader<T extends Item> implements Iterator<T> {
             }
 
             if (hugeBuffer.remaining() > 0) {
-                readToBuffer(buffer);
+                loadBuffer(buffer);
             }
         }
 

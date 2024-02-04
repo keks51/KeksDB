@@ -48,7 +48,7 @@ public class TestHttpKVStorageWritePerformance {
         kvServerHttpClient1.sendDropTableRequest(dbName, tableName);
 
         kvServerHttpClient1.sendCreateTableRequest(dbName, tableName, TableEngineType.LSM, new HashMap<>() {{
-            put(ConfigParams.LSM_SPARSE_INDEX_SIZE, sparseIndexSize);
+            put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, sparseIndexSize);
             put(ConfigParams.LSM_MEM_CACHE_SIZE, inMemoryRecords);
             put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, bloomFilterFalsePositiveRate);
         }});

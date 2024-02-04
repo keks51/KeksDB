@@ -8,6 +8,9 @@ import com.keks.kv_storage.query.range.MaxRangeKey;
 import com.keks.kv_storage.query.range.MinRangeKey;
 import com.keks.kv_storage.query.range.RangeKey;
 import com.keks.kv_storage.query.range.RangeSearchKey;
+import com.keks.kv_storage.utils.Time;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.cumulative.CumulativeTimer;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,6 +58,12 @@ public class SSTable {
         }
     }
 
+    public static CumulativeTimer readDense2 = (CumulativeTimer) Timer
+            .builder("readDense2")
+            .publishPercentileHistogram(true)
+            .publishPercentiles(0.5, 0.75, 0.99, 0.999, 0.9999)
+            .register(SSTableReader.oneSimpleMeter);
+
     // TODO create class SearchKey and replace String
     public KVRecord searchKey(String key) throws IOException {
         try {
@@ -63,7 +72,7 @@ public class SSTable {
             if (bloomFilter.contains(key) && key.compareTo(minKey.key) >= 0 && key.compareTo(maxKey.key) <= 0) {
                 IndexedKey sparseIndexKey = getSparseIndexForKey(new RangeSearchKey(key, true));
                 KVRecord res = null;
-                IndexedKey denseIndexedKey = ssTableReader.findKeyInDenseIndex(key, sparseIndexKey.posInReferenceFile);
+                IndexedKey denseIndexedKey = Time.withTimer(readDense2, () -> ssTableReader.findKeyInDenseIndex(key, sparseIndexKey.posInReferenceFile, sparseIndexKey.refRecordLen));
                 if (denseIndexedKey != null) {
                     res = ssTableReader.readKVRecord(denseIndexedKey.posInReferenceFile, denseIndexedKey.refRecordLen);
                 }
@@ -85,7 +94,7 @@ public class SSTable {
         } else {
 
             IndexedKey sparseIndexKey = getSparseIndexForKey(left); // closest key in index
-            IndexedKey denseIdxKey = ssTableReader.findKeyInDenseIndex(sparseIndexKey.key, sparseIndexKey.posInReferenceFile);
+            IndexedKey denseIdxKey = ssTableReader.findKeyInDenseIndex(sparseIndexKey.key, sparseIndexKey.posInReferenceFile, sparseIndexKey.refRecordLen);
             long dataFileStartPos = denseIdxKey.posInReferenceFile;
             Iterator<KVRecord> kvRecordIterator = ssTableReader.readRecords(dataFileStartPos);
 

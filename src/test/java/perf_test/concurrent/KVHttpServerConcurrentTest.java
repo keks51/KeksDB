@@ -56,7 +56,7 @@ class KVHttpServerConcurrentTest {
         KVServerHttpClient kvServerHttpClient1 = new KVServerHttpClient(serverHost, serverPort);
         kvServerHttpClient1.sendDropTableRequest(dbName, tableName);
         kvServerHttpClient1.sendCreateTableRequest(dbName, tableName, TableEngineType.LSM, new HashMap<>() {{
-            put(ConfigParams.LSM_SPARSE_INDEX_SIZE, defaultNumberOfKeysInBlockIndex);
+            put(ConfigParams.LSM_SPARSE_INDEX_SIZE_RECORDS, defaultNumberOfKeysInBlockIndex);
             put(ConfigParams.LSM_MEM_CACHE_SIZE, defaultMaxNumberOfRecordsInMemory);
             put(ConfigParams.LSM_BLOOM_FILTER_FALSE_POSITIVE_RATE, 0.1);
         }});

@@ -138,11 +138,11 @@ public class RecoveryManager implements Closeable {
 
     public void recover2(TableEngine tableEngine) throws IOException {
         log.info("Table '" + tableName + "' recovering from " + commitLogParalelism + " files");
-        CommitLogReader commitLogReader = new CommitLogReader(commitLogDir, commitLogParalelism);
+        CommitLogReader CommitLogReader = new CommitLogReader(commitLogDir, commitLogParalelism);
         int addCnt = 0;
         int deleteCnt = 0;
-        while (commitLogReader.hasNext()) {
-            KVRecord record = commitLogReader.next().kvRecord;
+        while (CommitLogReader.hasNext()) {
+            KVRecord record = CommitLogReader.next().kvRecord;
             if (record.isDeleted()) {
                 tableEngine.remove(record.key);
                 deleteCnt++;
@@ -153,7 +153,7 @@ public class RecoveryManager implements Closeable {
         }
 
         log.info("Table '" + tableName + "' successfully recovered. Added: " + addCnt + " Deleted: " + deleteCnt);
-        commitLogReader.close();
+        CommitLogReader.close();
         tableEngine.forceFlush();
         createCheckPoint();
     }
@@ -163,4 +163,5 @@ public class RecoveryManager implements Closeable {
         recoveryJournal.writeEvent(JournalEvent.END);
         recoveryJournal.close();
     }
+
 }
